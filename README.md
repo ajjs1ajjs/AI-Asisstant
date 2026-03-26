@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # 🧠 AI Coding IDE
 
 Локальна AI IDE для програмування з підтримкою GGUF моделей (Qwen, Llama, DeepSeek, Phi-3, Mistral).
@@ -21,10 +20,15 @@ pip install -r requirements.txt
 python main.py
 ```
 
-### Варіант 2: Готовий exe
+### Варіант 2: Зібрати свій exe
 ```bash
-# Завантаж AI_Coding_IDE.exe з релізів
-# Або з папки dist/
+# Встановлюємо PyInstaller
+pip install pyinstaller
+
+# Білд
+pyinstaller ai_ide.spec --clean
+
+# Готовий exe буде в dist/AI_Coding_IDE.exe
 ```
 
 ## 📋 Вибір моделі
@@ -46,7 +50,6 @@ python main.py
 ├── local_engine.py     # Llama-cpp-python інтеграція
 ├── context_engine.py   # FAISS контекстний пошук
 ├── ai_ide.spec         # PyInstaller конфіг
-├── dist/               # Скомпільований exe
 └── requirements.txt    # Залежності
 ```
 
@@ -65,6 +68,3 @@ python main.py
 ## 📝 Ліцензія
 
 MIT
-=======
-# AI-Asisstant
->>>>>>> b7c284e3aeca614d81e6fa86d6f41e1636c07109
