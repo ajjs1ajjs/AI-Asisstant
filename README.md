@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # 🧠 AI Coding IDE
 
 Локальна AI IDE для програмування з підтримкою GGUF моделей (Qwen, Llama, DeepSeek, Phi-3, Mistral).
@@ -64,3 +65,6 @@ python main.py
 ## 📝 Ліцензія
 
 MIT
+=======
+# AI-Asisstant
+>>>>>>> b7c284e3aeca614d81e6fa86d6f41e1636c07109
