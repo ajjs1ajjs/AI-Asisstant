@@ -20,18 +20,29 @@ class LocalInference:
         self.is_loaded = False
 
     def load_model(self, model_path: str, n_ctx: int = 2048, n_gpu_layers: int = 0):
-        """
-        Load a GGUF model with reduced context for faster loading
-        """
+        """Load a GGUF model"""
         try:
             from llama_cpp import Llama
             import os
             import time
+            import logging
+            import io
+
+            # Suppress all llama_cpp logging
+            for logger_name in ["llama_cpp", "llamacpp", "llama"]:
+                logging.getLogger(logger_name).setLevel(logging.CRITICAL)
+
+            # Set environment to suppress C-level logs
+            os.environ["GGML_LOG_LEVEL"] = "0"
+            os.environ["LLAMA_LOG_LEVEL"] = "0"
+
+            # Capture stdout during model loading
+            old_stdout = sys.stdout
+            sys.stdout = io.StringIO()
 
             print(f"Loading model from: {model_path}")
             start = time.time()
 
-            # Reduce threads for stability
             n_threads = max(2, (os.cpu_count() or 4) - 1)
             print(f"Using {n_threads} threads, context: {n_ctx}")
 
@@ -43,6 +54,10 @@ class LocalInference:
                 n_batch=512,
                 verbose=False,
             )
+
+            # Get any captured output and discard it
+            sys.stdout.getvalue()
+            sys.stdout = old_stdout
 
             elapsed = time.time() - start
             print(f"Model loaded in {elapsed:.1f}s!")
@@ -63,47 +78,107 @@ class LocalInference:
             raise Exception(f"Failed to load model: {str(e)}")
 
     def _suppress_stderr(self):
-        """Suppress stderr to hide llama_cpp warnings - C level"""
+        """Suppress all output from llama_cpp"""
         import sys
         import os
+        import io
 
-        # Save original stderr fd
+        # Suppress Python logging
+        import logging
+
+        logging.getLogger("llama_cpp").setLevel(logging.CRITICAL)
+        logging.getLogger("llamacpp").setLevel(logging.CRITICAL)
+
+        # Suppress C-level output using file descriptor redirection
+        self._old_stdout_fd = os.dup(sys.stdout.fileno())
         self._old_stderr_fd = os.dup(sys.stderr.fileno())
-        # Open devnull
-        self._devnull_fd = os.open(os.devnull, os.O_WRONLY)
-        # Redirect stderr to devnull
-        os.dup2(self._devnull_fd, sys.stderr.fileno())
+
+        # Create new file descriptors pointing to devnull
+        self._devnull_out = os.open(os.devnull, os.O_WRONLY)
+        self._devnull_err = os.open(os.devnull, os.O_WRONLY)
+
+        # Redirect
+        os.dup2(self._devnull_out, sys.stdout.fileno())
+        os.dup2(self._devnull_err, sys.stderr.fileno())
 
     def _restore_stderr(self):
-        """Restore stderr"""
+        """Restore stdout and stderr"""
         import sys
         import os
 
         try:
-            os.dup2(self._old_stderr_fd, sys.stderr.fileno())
-            os.close(self._old_stderr_fd)
-            os.close(self._devnull_fd)
+            # Restore stdout
+            if hasattr(self, "_old_stdout_fd") and self._old_stdout_fd:
+                os.dup2(self._old_stdout_fd, sys.stdout.fileno())
+                os.close(self._old_stdout_fd)
+            # Restore stderr
+            if hasattr(self, "_old_stderr_fd") and self._old_stderr_fd:
+                os.dup2(self._old_stderr_fd, sys.stderr.fileno())
+                os.close(self._old_stderr_fd)
+            # Close devnull fds
+            if hasattr(self, "_devnull_out"):
+                os.close(self._devnull_out)
+            if hasattr(self, "_devnull_err"):
+                os.close(self._devnull_err)
         except:
             pass
 
     def _run_inference(self, prompt, max_tokens, temperature):
-        """Run inference with stderr suppressed"""
-        self._suppress_stderr()
+        """Run inference"""
+        import sys
+        import os
+        import io
+        import logging
+
+        # Suppress all output
+        logging.getLogger("llama_cpp").setLevel(logging.CRITICAL)
+
+        # Save and redirect
+        stdout_fd = os.dup(sys.stdout.fileno())
+        stderr_fd = os.dup(sys.stderr.fileno())
+        devnull = os.open(os.devnull, os.O_WRONLY)
+
+        os.dup2(devnull, sys.stdout.fileno())
+        os.dup2(devnull, sys.stderr.fileno())
+
         try:
-            output = self.model(
+            result = self.model(
                 prompt,
                 max_tokens=max_tokens,
                 temperature=temperature,
                 stop=["\n\n", "User:", "user:"],
             )
-            return output["choices"][0]["text"]
+            text = result["choices"][0]["text"]
         except Exception as e:
-            err_str = str(e).lower()
-            if "image" in err_str and "vision" in err_str:
-                raise Exception("This model does not support images.")
+            # Restore first to get proper exception
+            os.dup2(stdout_fd, sys.stdout.fileno())
+            os.dup2(stderr_fd, sys.stderr.fileno())
+            os.close(stdout_fd)
+            os.close(stderr_fd)
+            os.close(devnull)
+
+            err = str(e)
+            if (
+                "image" in err.lower()
+                or "vision" in err.lower()
+                or "cannot read" in err.lower()
+            ):
+                raise Exception(
+                    "Ця модель не підтримує изображения. Доступні лише текстові запити."
+                )
             raise
         finally:
-            self._restore_stderr()
+            # Restore if not already restored
+            try:
+                os.dup2(stdout_fd, sys.stdout.fileno())
+                os.dup2(stderr_fd, sys.stderr.fileno())
+                os.close(stdout_fd)
+                os.close(stderr_fd)
+                os.close(devnull)
+            except:
+                pass
+
+        return text
 
     def generate(
         self,
@@ -122,24 +197,11 @@ class LocalInference:
     def chat(
         self, messages: List[Dict], max_tokens: int = 512, temperature: float = 0.7
     ) -> str:
-        """
-        Chat with model using message format
-
-        Args:
-            messages: List of {"role": "user|assistant", "content": "..."}
-        """
+        """Chat with model"""
         if not self.is_loaded or self.model is None:
             raise Exception("No model loaded")
-
         prompt = self._format_messages(messages)
-
-        try:
-            return self._run_inference(prompt, max_tokens, temperature)
-        except Exception as e:
-            err_str = str(e).lower()
-            if "image" in err_str and "vision" in err_str:
-                raise Exception("This model does not support images.")
-            raise
+        return self._run_inference(prompt, max_tokens, temperature)
 
     def chat_stream(
         self, messages: List[Dict], max_tokens: int = 512, temperature: float = 0.7
@@ -160,6 +222,13 @@ class LocalInference:
                 stream=True,
             ):
                 yield token["choices"][0]["text"]
+        except Exception as e:
+            err_str = str(e).lower()
+            if "image" in err_str or "cannot read" in err_str:
+                raise Exception(
+                    "Ця модель не підтримує зображення. Доступні лише текстові запити."
+                )
+            raise
         finally:
             self._restore_stderr()
 

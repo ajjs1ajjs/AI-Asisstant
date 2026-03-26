@@ -56,6 +56,22 @@ class LocalModelManager:
                 "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-32B-Instruct-GGUF/resolve/main/qwen2.5-coder-32b-instruct-q4_k_m.gguf",
                 "file": "qwen2.5-coder-32b-instruct-q4_k_m.gguf",
             },
+            {
+                "name": "GLM-4-9B-Chat",
+                "size_gb": 9.5,
+                "ram_required_gb": 32,
+                "description": "GLM-4 Chinese champion",
+                "url": "https://huggingface.co/THUDM/glm-4-9b-chat-GGUF/resolve/main/glm-4-9b-chat-q4_k_m.gguf",
+                "file": "glm-4-9b-chat-q4_k_m.gguf",
+            },
+            {
+                "name": "Gemma-2-9B",
+                "size_gb": 5.5,
+                "ram_required_gb": 32,
+                "description": "Google Gemma 2",
+                "url": "https://huggingface.co/google/gemma-2-9b-it-GGUF/resolve/main/gemma-2-9b-it-q4_k_m.gguf",
+                "file": "gemma-2-9b-it-q4_k_m.gguf",
+            },
             # 16GB RAM - STRONG
             {
                 "name": "Qwen2.5-Coder-14B",
@@ -64,6 +80,22 @@ class LocalModelManager:
                 "description": "BEST quality 14B",
                 "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-14B-Instruct-GGUF/resolve/main/qwen2.5-coder-14b-instruct-q4_k_m.gguf",
                 "file": "qwen2.5-coder-14b-instruct-q4_k_m.gguf",
+            },
+            {
+                "name": "Mistral-7B-Instruct",
+                "size_gb": 4.4,
+                "ram_required_gb": 16,
+                "description": "Mistral famous 7B",
+                "url": "https://huggingface.co/TheBloke/Mistral-7B-Instruct-v0.2-GGUF/resolve/main/mistral-7b-instruct-v0.2-q4_k_m.gguf",
+                "file": "mistral-7b-instruct-v0.2-q4_k_m.gguf",
+            },
+            {
+                "name": "Llama-3.2-3B",
+                "size_gb": 2.0,
+                "ram_required_gb": 16,
+                "description": "Meta Llama 3.2",
+                "url": "https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q4_K_M.gguf",
+                "file": "Llama-3.2-3B-Instruct-Q4_K_M.gguf",
             },
             # 8GB RAM - MEDIUM
             {
@@ -81,6 +113,22 @@ class LocalModelManager:
                 "description": "Good chat",
                 "url": "https://huggingface.co/Qwen/Qwen2-7B-Instruct-GGUF/resolve/main/qwen2-7b-instruct-q4_0.gguf",
                 "file": "qwen2-7b-instruct-q4_0.gguf",
+            },
+            {
+                "name": "Phi-3.5-mini",
+                "size_gb": 2.5,
+                "ram_required_gb": 8,
+                "description": "Microsoft Phi-3.5",
+                "url": "https://huggingface.co/microsoft/Phi-3.5-mini-instruct-GGUF/resolve/main/Phi-3.5-mini-instruct-q4.gguf",
+                "file": "Phi-3.5-mini-instruct-q4.gguf",
+            },
+            {
+                "name": "SmolLM2-1.7B",
+                "size_gb": 1.1,
+                "ram_required_gb": 8,
+                "description": "HuggingFace efficient",
+                "url": "https://huggingface.co/HuggingFaceTB/SmolLM2-1.7B-Instruct-GGUF/resolve/main/SmolLM2-1.7B-Instruct-Q4_K_M.gguf",
+                "file": "SmolLM2-1.7B-Instruct-Q4_K_M.gguf",
             },
             # 4GB RAM - FAST
             {
@@ -108,12 +156,28 @@ class LocalModelManager:
                 "file": "qwen2.5-1.5b-instruct-q4_0.gguf",
             },
             {
+                "name": "Llama-3.2-1B",
+                "size_gb": 0.7,
+                "ram_required_gb": 4,
+                "description": "Meta fast Llama",
+                "url": "https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf",
+                "file": "Llama-3.2-1B-Instruct-Q4_K_M.gguf",
+            },
+            {
                 "name": "Phi-3-mini",
                 "size_gb": 2.2,
                 "ram_required_gb": 4,
                 "description": "Microsoft",
                 "url": "https://huggingface.co/microsoft/Phi-3-mini-4k-instruct-gguf/resolve/main/Phi-3-mini-4k-instruct-q4.gguf",
                 "file": "Phi-3-mini-4k-instruct-q4.gguf",
+            },
+            {
+                "name": "TinyLlama-1.1B",
+                "size_gb": 0.7,
+                "ram_required_gb": 4,
+                "description": "Ultra fast",
+                "url": "https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/TinyLlama-1.1B-Chat-v1.0-q4_k_m.gguf",
+                "file": "TinyLlama-1.1B-Chat-v1.0-q4_k_m.gguf",
             },
             # 2GB RAM - TINY
             {
@@ -131,6 +195,14 @@ class LocalModelManager:
                 "description": "Tiny chat",
                 "url": "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_0.gguf",
                 "file": "qwen2.5-0.5b-instruct-q4_0.gguf",
+            },
+            {
+                "name": "SmolLM2-135M",
+                "size_gb": 0.1,
+                "ram_required_gb": 2,
+                "description": "Smallest fast",
+                "url": "https://huggingface.co/HuggingFaceTB/SmolLM2-135M-Instruct-GGUF/resolve/main/SmolLM2-135M-Instruct-Q4_K_M.gguf",
+                "file": "SmolLM2-135M-Instruct-Q4_K_M.gguf",
             },
         ]
 

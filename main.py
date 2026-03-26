@@ -939,13 +939,18 @@ class MainWindow(QMainWindow):
         d.setOption(QFileDialog.ShowDirsOnly)
         if d.exec():
             path = d.selectedFiles()[0]
-            os.makedirs(os.path.join(path, "src"), exist_ok=True)
-            with open(os.path.join(path, "README.md"), "w") as f:
-                f.write(f"# Project\n\n{datetime.now()}\n")
-            self.load_project(path)
-            self.chat.append(
-                "<div style='background: #1e3a2a; padding: 10px; border-radius: 8px; margin: 4px 0;'><span style='color: #4ec9b0;'>✓ Створено</span></div>"
-            )
+            try:
+                os.makedirs(os.path.join(path, "src"), exist_ok=True)
+                with open(os.path.join(path, "README.md"), "w", encoding="utf-8") as f:
+                    f.write(f"# Project\n\n{datetime.now()}\n")
+                self.load_project(path)
+                self.chat.append(
+                    "<div style='background: #1e3a2a; padding: 10px; border-radius: 8px; margin: 4px 0;'><span style='color: #4ec9b0;'>✓ Створено</span></div>"
+                )
+            except Exception as e:
+                self.chat.append(
+                    f"<div style='background: #3a2020; padding: 10px; border-radius: 8px; margin: 4px 0;'><span style='color: #f44747;'>✗ Помилка: {str(e)}</span></div>"
+                )
 
     def open_project(self):
         d = QFileDialog()
