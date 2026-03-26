@@ -38,109 +38,99 @@ class LocalModelManager:
 
         # Catalog of models optimized for coding
         self.model_catalog = [
-            # Qwen Coder - BEST for programming
+            # 64GB RAM - VERY POWERFUL
             {
-                "name": "Qwen2.5-Coder-7B-Instruct",
-                "size_gb": 4.7,
-                "quantization": "Q4_K_M",
+                "name": "Qwen2-72B",
+                "size_gb": 38.5,
+                "ram_required_gb": 64,
+                "description": "MOST POWERFUL - 72B",
+                "url": "https://huggingface.co/Qwen/Qwen2-72B-Instruct-GGUF/resolve/main/qwen2-72b-instruct-q4_0.gguf",
+                "file": "qwen2-72b-instruct-q4_0.gguf",
+            },
+            # 32GB RAM - POWERFUL
+            {
+                "name": "Qwen2.5-Coder-32B",
+                "size_gb": 18.5,
+                "ram_required_gb": 32,
+                "description": "BEST coding 32B",
+                "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-32B-Instruct-GGUF/resolve/main/qwen2.5-coder-32b-instruct-q4_k_m.gguf",
+                "file": "qwen2.5-coder-32b-instruct-q4_k_m.gguf",
+            },
+            # 16GB RAM - STRONG
+            {
+                "name": "Qwen2.5-Coder-14B",
+                "size_gb": 8.4,
+                "ram_required_gb": 16,
+                "description": "BEST quality 14B",
+                "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-14B-Instruct-GGUF/resolve/main/qwen2.5-coder-14b-instruct-q4_k_m.gguf",
+                "file": "qwen2.5-coder-14b-instruct-q4_k_m.gguf",
+            },
+            # 8GB RAM - MEDIUM
+            {
+                "name": "Qwen2.5-Coder-7B",
+                "size_gb": 4.4,
                 "ram_required_gb": 8,
-                "description": "🏆 BEST for CODE - Qwen 2.5 Coder",
+                "description": "BEST for coding",
                 "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-7B-Instruct-GGUF/resolve/main/qwen2.5-coder-7b-instruct-q4_k_m.gguf",
                 "file": "qwen2.5-coder-7b-instruct-q4_k_m.gguf",
             },
             {
-                "name": "Qwen2.5-Coder-14B-Instruct",
-                "size_gb": 9.1,
-                "quantization": "Q4_K_M",
-                "ram_required_gb": 16,
-                "description": "🏆 BEST 14B - Excellent code quality",
-                "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-14B-Instruct-GGUF/resolve/main/qwen2.5-coder-14b-instruct-q4_k_m.gguf",
-                "file": "qwen2.5-coder-14b-instruct-q4_k_m.gguf",
-            },
-            {
-                "name": "Qwen2.5-Coder-32B-Instruct",
-                "size_gb": 19.5,
-                "quantization": "Q4_K_M",
-                "ram_required_gb": 32,
-                "description": "👑 SOTA for CODE - 32B beast",
-                "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-32B-Instruct-GGUF/resolve/main/qwen2.5-coder-32b-instruct-q4_k_m.gguf",
-                "file": "qwen2.5-coder-32b-instruct-q4_k_m.gguf",
-            },
-            # DeepSeek Coder
-            {
-                "name": "DeepSeek-Coder-6.7B-Instruct",
-                "size_gb": 4.2,
-                "quantization": "Q4_K_M",
+                "name": "Qwen2-7B",
+                "size_gb": 4.1,
                 "ram_required_gb": 8,
-                "description": "🎯 DeepSeek Coder - Great for code",
-                "url": "https://huggingface.co/deepseek-ai/deepseek-coder-6.7b-instruct-GGUF/resolve/main/deepseek-coder-6.7b-instruct-q4_k_m.gguf",
-                "file": "deepseek-coder-6.7b-instruct-q4_k_m.gguf",
+                "description": "Good chat",
+                "url": "https://huggingface.co/Qwen/Qwen2-7B-Instruct-GGUF/resolve/main/qwen2-7b-instruct-q4_0.gguf",
+                "file": "qwen2-7b-instruct-q4_0.gguf",
             },
+            # 4GB RAM - FAST
             {
-                "name": "DeepSeek-Coder-33B-Instruct",
-                "size_gb": 19.2,
-                "quantization": "Q4_K_M",
-                "ram_required_gb": 32,
-                "description": "🎯 DeepSeek 33B - Code specialist",
-                "url": "https://huggingface.co/TheBloch/deepseek-coder-33b-instruct-GGUF/resolve/main/deepseek-coder-33b-instruct-q4_k_m.gguf",
-                "file": "deepseek-coder-33b-instruct-q4_k_m.gguf",
-            },
-            # Llama for general tasks
-            {
-                "name": "Llama-3.2-3B-Instruct",
-                "size_gb": 2.1,
-                "quantization": "Q4_K_M",
+                "name": "Qwen2.5-Coder-3B",
+                "size_gb": 1.9,
                 "ram_required_gb": 4,
-                "description": "⚡ Super fast - 3B for weak PCs",
-                "url": "https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q4_K_M.gguf",
-                "file": "Llama-3.2-3B-Instruct-Q4_K_M.gguf",
+                "description": "Fast coding",
+                "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-3B-Instruct-GGUF/resolve/main/qwen2.5-coder-3b-instruct-q4_0.gguf",
+                "file": "qwen2.5-coder-3b-instruct-q4_0.gguf",
             },
             {
-                "name": "Llama-3.1-8B-Instruct",
-                "size_gb": 5.5,
-                "quantization": "Q4_K_M",
-                "ram_required_gb": 8,
-                "description": "🦙 Llama 3.1 - Balanced",
-                "url": "https://huggingface.co/bartowski/Meta-Llama-3.1-8B-Instruct-GGUF/resolve/main/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf",
-                "file": "Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf",
-            },
-            {
-                "name": "Llama-3.1-70B-Instruct",
-                "size_gb": 42.5,
-                "quantization": "Q4_K_M",
-                "ram_required_gb": 64,
-                "description": "🦙 Llama 3.1 70B - Powerful",
-                "url": "https://huggingface.co/bartowski/Meta-Llama-3.1-70B-Instruct-GGUF/resolve/main/Meta-Llama-3.1-70B-Instruct-Q4_K_M.gguf",
-                "file": "Meta-Llama-3.1-70B-Instruct-Q4_K_M.gguf",
-            },
-            # Phi-3 - Microsoft efficient
-            {
-                "name": "Phi-3-mini-4k-instruct",
-                "size_gb": 2.5,
-                "quantization": "Q4_K_M",
+                "name": "Qwen2.5-Coder-1.5B",
+                "size_gb": 1.0,
                 "ram_required_gb": 4,
-                "description": "📱 Phi-3 Mini - Tiny but smart",
-                "url": "https://huggingface.co/bartowski/Phi-3-mini-4k-instruct-GGUF/resolve/main/Phi-3-mini-4k-instruct-Q4_K_M.gguf",
-                "file": "Phi-3-mini-4k-instruct-Q4_K_M.gguf",
+                "description": "Fast coding",
+                "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF/resolve/main/qwen2.5-coder-1.5b-instruct-q4_0.gguf",
+                "file": "qwen2.5-coder-1.5b-instruct-q4_0.gguf",
             },
             {
-                "name": "Phi-3-medium-4k-instruct",
-                "size_gb": 5.2,
-                "quantization": "Q4_K_M",
-                "ram_required_gb": 8,
-                "description": "📱 Phi-3 Medium - Great value",
-                "url": "https://huggingface.co/bartowski/Phi-3-medium-4k-instruct-GGUF/resolve/main/Phi-3-medium-4k-instruct-Q4_K_M.gguf",
-                "file": "Phi-3-medium-4k-instruct-Q4_K_M.gguf",
+                "name": "Qwen2.5-1.5B",
+                "size_gb": 1.0,
+                "ram_required_gb": 4,
+                "description": "Fast chat",
+                "url": "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_0.gguf",
+                "file": "qwen2.5-1.5b-instruct-q4_0.gguf",
             },
-            # Mistral
             {
-                "name": "Mistral-7B-Instruct-v0.3",
-                "size_gb": 4.4,
-                "quantization": "Q4_K_M",
-                "ram_required_gb": 8,
-                "description": "💨 Mistral v3 - Reliable 7B",
-                "url": "https://huggingface.co/bartowski/Mistral-7B-Instruct-v0.3-GGUF/resolve/main/Mistral-7B-Instruct-v0.3-Q4_K_M.gguf",
-                "file": "Mistral-7B-Instruct-v0.3-Q4_K_M.gguf",
+                "name": "Phi-3-mini",
+                "size_gb": 2.2,
+                "ram_required_gb": 4,
+                "description": "Microsoft",
+                "url": "https://huggingface.co/microsoft/Phi-3-mini-4k-instruct-gguf/resolve/main/Phi-3-mini-4k-instruct-q4.gguf",
+                "file": "Phi-3-mini-4k-instruct-q4.gguf",
+            },
+            # 2GB RAM - TINY
+            {
+                "name": "Qwen2.5-Coder-0.5B",
+                "size_gb": 0.5,
+                "ram_required_gb": 2,
+                "description": "Tiny coding",
+                "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-0.5B-Instruct-GGUF/resolve/main/qwen2.5-coder-0.5b-instruct-q4_k_m.gguf",
+                "file": "qwen2.5-coder-0.5b-instruct-q4_k_m.gguf",
+            },
+            {
+                "name": "Qwen2.5-0.5B",
+                "size_gb": 0.4,
+                "ram_required_gb": 2,
+                "description": "Tiny chat",
+                "url": "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_0.gguf",
+                "file": "qwen2.5-0.5b-instruct-q4_0.gguf",
             },
         ]
 
@@ -196,7 +186,18 @@ class LocalModelManager:
 
             # Check if already downloaded
             model_path = self.models_dir / model["file"]
-            is_downloaded = model_path.exists()
+            is_downloaded = False
+            if model_path.exists():
+                actual_size_mb = model_path.stat().st_size / (1024**2)
+                expected_size_mb = model["size_gb"] * 1024
+                # Allow 10% tolerance
+                if actual_size_mb > expected_size_mb * 0.9:
+                    is_downloaded = True
+                else:
+                    print(
+                        f"File {model['name']} is corrupted: {actual_size_mb:.0f}MB vs expected {expected_size_mb:.0f}MB"
+                    )
+                    model_path.unlink()  # Remove corrupted file
 
             compatible.append(
                 {
@@ -227,9 +228,18 @@ class LocalModelManager:
         """Download a model with progress tracking"""
         url = model["url"]
         file_path = self.models_dir / model["file"]
+        expected_size_gb = model.get("size_gb", 0)
 
         if file_path.exists():
-            return True
+            actual_size_mb = file_path.stat().st_size / (1024**2)
+            expected_size_mb = expected_size_gb * 1024
+            if actual_size_mb >= expected_size_mb * 0.9:
+                return True
+            else:
+                print(
+                    f"Existing file corrupted: {actual_size_mb:.0f}MB vs expected {expected_size_mb:.0f}MB"
+                )
+                file_path.unlink()
 
         try:
             import requests
@@ -257,7 +267,14 @@ class LocalModelManager:
                             progress = (downloaded / total_size) * 100
                             progress_callback(progress, downloaded, total_size)
 
-            print(f"Завантажено: {file_path}")
+            final_size_mb = file_path.stat().st_size / (1024**2)
+            expected_mb = total_size / (1024**2)
+            if final_size_mb < expected_mb * 0.9:
+                raise Exception(
+                    f"Download incomplete: {final_size_mb:.0f}MB vs {expected_mb:.0f}MB"
+                )
+
+            print(f"Завантажено: {file_path} ({final_size_mb:.0f}MB)")
             return True
         except requests.exceptions.HTTPError as e:
             print(f"HTTP помилка: {e}")

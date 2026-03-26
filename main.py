@@ -10,10 +10,11 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from PySide6.QtCore import Qt, QTimer, QMimeData
-from PySide6.QtGui import QColor, QDrag, QPainter, QPixmap, QKeySequence
+from PySide6.QtGui import QColor, QDrag, QPainter, QPixmap, QKeySequence, QIcon
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
+    QDialog,
     QFileDialog,
     QFrame,
     QHBoxLayout,
@@ -73,19 +74,51 @@ def find_editors():
     return editors
 
 
-class DownloadDialog(QMessageBox):
+class DownloadDialog(QDialog):
     def __init__(self, model, parent=None):
         super().__init__(parent)
         self.setWindowTitle(f"Завантаження {model['name']}")
-        self.setStandardButtons(QMessageBox.Cancel)
-        self.setText(f"Завантаження {model['name']} ({model['size_gb']} GB)...")
-        self.setInformativeText("Це може зайняти 5-30 хвилин.")
+        self.setModal(True)
+        self.setFixedSize(350, 120)
+        self.setStyleSheet("background-color: #1e1e1e; color: #d4d4d4;")
+
+        layout = QVBoxLayout(self)
+
+        self.label = QLabel(f"Завантаження {model['name']} ({model['size_gb']} GB)...")
+        self.label.setStyleSheet("color: #d4d4d4; font-size: 12px;")
+        layout.addWidget(self.label)
+
         self.progress = QProgressBar()
         self.progress.setRange(0, 100)
         self.progress.setValue(0)
-        self.layout().addWidget(self.progress, 1, 0, 1, self.layout().columnCount())
-        self.model = model
-        self.downloaded = False
+        self.progress.setStyleSheet("""
+            QProgressBar {
+                background-color: #2a2a2e;
+                border-radius: 8px;
+                height: 20px;
+                text-align: center;
+                color: #fff;
+            }
+            QProgressBar::chunk {
+                background-color: #0078d4;
+                border-radius: 8px;
+            }
+        """)
+        layout.addWidget(self.progress)
+
+        self.cancel_btn = QPushButton("Скасувати")
+        self.cancel_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #3a3a3e;
+                border: none;
+                padding: 6px 16px;
+                border-radius: 4px;
+                color: #d4d4d4;
+            }
+            QPushButton:hover { background-color: #4a4a4e; }
+        """)
+        self.cancel_btn.clicked.connect(self.close)
+        layout.addWidget(self.cancel_btn)
 
     def update_progress(self, percent):
         self.progress.setValue(int(percent))
@@ -280,9 +313,14 @@ class TypingIndicator(QFrame):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("🚀 AI Coding IDE")
+        self.setWindowTitle("AI Coding IDE")
         self.setMinimumSize(900, 600)
         self.resize(1200, 800)
+
+        # Set window icon
+        icon_path = self._get_resource_path("icon.ico")
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
 
         self.setStyleSheet("""
             QMainWindow { background-color: #1e1e1e; }
@@ -731,6 +769,16 @@ class MainWindow(QMainWindow):
         if not self.last_project or not os.path.exists(self.last_project):
             self.load_project(os.getcwd())
 
+    def _get_resource_path(self, filename):
+        """Get path to resource file (works in dev and PyInstaller)"""
+        if getattr(sys, "frozen", False):
+            # Running as PyInstaller bundle
+            base_path = sys._MEIPASS
+        else:
+            # Running in development
+            base_path = os.path.dirname(os.path.abspath(__file__))
+        return os.path.join(base_path, filename)
+
     def refresh_models(self):
         while self.models_layout.count():
             item = self.models_layout.takeAt(0)
@@ -779,46 +827,88 @@ class MainWindow(QMainWindow):
 
         if reply == QMessageBox.Yes:
             self.dialog = DownloadDialog(model, self)
+            self.download_progress = {"percent": 0, "done": False, "error": None}
             self.dialog.show()
+
+            def update_progress(percent, downloaded, total_size):
+                self.download_progress["percent"] = int(percent)
 
             def dl():
                 try:
                     mm = LocalModelManager()
-                    result = mm.download_model(
-                        model, lambda p: self.dialog.update_progress(p)
-                    )
+                    print(f"Start download: {model['name']}")
+                    result = mm.download_model(model, update_progress)
                     if result:
-                        self.dialog.downloaded = True
-                        self.dialog.close()
+                        print(f"Download complete: {model['name']}")
                     else:
-                        self.dialog.close()
-                        self.show_error("Не вдалося завантажити модель")
+                        print(f"Download failed: {model['name']}")
+                        self.download_progress["error"] = "Download failed"
                 except Exception as e:
-                    self.dialog.close()
-                    self.show_error(f"Помилка: {str(e)}")
+                    print(f"Download error: {e}")
+                    self.download_progress["error"] = str(e)
+                finally:
+                    self.download_progress["done"] = True
 
             threading.Thread(target=dl, daemon=True).start()
+
+            def check_progress():
+                if self.dialog:
+                    self.dialog.update_progress(self.download_progress["percent"])
+                    if self.download_progress["done"]:
+                        self.dialog.close()
+                        self.dialog = None
+                        self.refresh_models()
+                        if self.download_progress["error"]:
+                            self.show_error(self.download_progress["error"])
+                        return
+                QTimer.singleShot(200, check_progress)
+
+            QTimer.singleShot(200, check_progress)
 
     def show_error(self, msg):
         QMessageBox.critical(self, "Помилка", msg)
 
     def load_model(self, model):
         self.chat.append(
-            f"<div style='color: #0078d4; font-style: italic; padding: 8px;'>📥 Завантаження {model['name']}...</div>"
+            f"<div style='color: #0078d4; font-style: italic; padding: 8px;'>⏳ Завантаження {model['name']} в пам'ять...</div>"
         )
-        try:
-            path = self.model_manager.get_model_path(model["name"])
-            if not path:
-                raise Exception("Model not found")
-            self.inference.load_model(str(path))
-            self.current_model = model["name"]
-            self.model_status.setText(f"✅ {model['name']}")
-            self.model_status.setStyleSheet("color:#4ec9b0; font-weight:bold;")
-            self.chat.append(
-                "<div style='background: #1e3a2a; padding: 10px; border-radius: 8px; margin: 4px 0;'><span style='color: #4ec9b0;'>✓ Модель завантажено!</span></div>"
-            )
-        except Exception as e:
-            self.chat.append(f"<div style='color: #f44747; padding: 8px;'>✗ {e}</div>")
+        self.model_status.setText("⏳ Завантаження...")
+        self.model_status.setStyleSheet("color: #0078d4; font-weight: bold;")
+
+        def load():
+            try:
+                import time
+
+                path = self.model_manager.get_model_path(model["name"])
+                if not path:
+                    raise Exception("Model not found")
+
+                print(f"Loading model from: {path}")
+                start = time.time()
+
+                self.inference.load_model(str(path))
+
+                elapsed = time.time() - start
+                print(f"Model loaded in {elapsed:.1f}s")
+
+                self.current_model = model["name"]
+                self.model_status.setText(f"✅ {model['name']}")
+                self.model_status.setStyleSheet("color: #4ec9b0; font-weight: bold;")
+                self.chat.append(
+                    "<div style='background: #1e3a2a; padding: 10px; border-radius: 8px; margin: 4px 0;'><span style='color: #4ec9b0;'>✓ Модель готова!</span></div>"
+                )
+            except Exception as e:
+                import traceback
+
+                print(f"Error: {e}")
+                print(traceback.format_exc())
+                self.model_status.setText("⚠️ Помилка")
+                self.model_status.setStyleSheet("color: #f44747; font-weight: bold;")
+                self.chat.append(
+                    f"<div style='color: #f44747; padding: 8px;'>✗ {e}</div>"
+                )
+
+        threading.Thread(target=load, daemon=True).start()
 
     def delete_model(self, model):
         reply = QMessageBox.question(

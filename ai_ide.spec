@@ -8,14 +8,25 @@ block_cipher = None
 
 CURRENT_DIR = Path('.').resolve()
 
+# Find llama_cpp lib path
+import llama_cpp
+LLAMA_CPP_PATH = Path(llama_cpp.__file__).parent / 'lib'
+
+from PyInstaller.utils.hooks import collect_all, collect_dynamic_libs
+
+# Collect all llama_cpp data
+datas_llama, binaries_llama, hiddenimports_llama = collect_all('llama_cpp')
+
 a = Analysis(
     ['main.py'],
     pathex=[str(CURRENT_DIR)],
-    binaries=[],
-    datas=[
+    binaries=binaries_llama + [
+        (str(LLAMA_CPP_PATH / '*.dll'), 'llama_cpp'),
+    ],
+    datas=datas_llama + [
         ('.env', '.'),
     ],
-    hiddenimports=[
+    hiddenimports=hiddenimports_llama + [
         'PySide6',
         'PySide6.QtCore',
         'PySide6.QtGui',
@@ -27,7 +38,6 @@ a = Analysis(
         'dotenv',
         'requests',
         'psutil',
-        'llama_cpp',
     ],
     hookspath=[],
     hooksconfig={},
@@ -61,5 +71,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=None,
+    icon='icon.ico',
 )
