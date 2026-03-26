@@ -234,9 +234,18 @@ class LocalModelManager:
         try:
             import requests
 
-            response = requests.get(url, stream=True)
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            }
+
+            print(f"Завантаження з: {url}")
+
+            response = requests.get(url, stream=True, timeout=30, headers=headers)
+            response.raise_for_status()
+
             total_size = int(response.headers.get("content-length", 0))
             downloaded = 0
+            print(f"Розмір файлу: {total_size / (1024**3):.2f} GB")
 
             with open(file_path, "wb") as f:
                 for chunk in response.iter_content(chunk_size=8192):
@@ -248,11 +257,18 @@ class LocalModelManager:
                             progress = (downloaded / total_size) * 100
                             progress_callback(progress, downloaded, total_size)
 
+            print(f"Завантажено: {file_path}")
             return True
-        except Exception as e:
+        except requests.exceptions.HTTPError as e:
+            print(f"HTTP помилка: {e}")
             if file_path.exists():
-                file_path.unlink()  # Remove incomplete file
-            return False
+                file_path.unlink()
+            raise Exception(f"HTTP помилка: {e}")
+        except Exception as e:
+            print(f"Помилка завантаження: {e}")
+            if file_path.exists():
+                file_path.unlink()
+            raise Exception(f"Помилка завантаження: {e}")
 
     def delete_model(self, model_name: str) -> bool:
         """Delete a downloaded model"""

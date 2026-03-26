@@ -76,10 +76,10 @@ def find_editors():
 class DownloadDialog(QMessageBox):
     def __init__(self, model, parent=None):
         super().__init__(parent)
-        self.setWindowTitle(f"Downloading {model['name']}")
+        self.setWindowTitle(f"Завантаження {model['name']}")
         self.setStandardButtons(QMessageBox.Cancel)
-        self.setText(f"Downloading {model['name']} ({model['size_gb']} GB)...")
-        self.setInformativeText("This may take 5-30 minutes.")
+        self.setText(f"Завантаження {model['name']} ({model['size_gb']} GB)...")
+        self.setInformativeText("Це може зайняти 5-30 хвилин.")
         self.progress = QProgressBar()
         self.progress.setRange(0, 100)
         self.progress.setValue(0)
@@ -771,8 +771,8 @@ class MainWindow(QMainWindow):
     def download_model(self, model):
         reply = QMessageBox.question(
             self,
-            "Download",
-            f"Download {model['name']} ({model['size_gb']} GB)?",
+            "Завантаження",
+            f"Завантажити {model['name']} ({model['size_gb']} GB)?\n\nЦе може зайняти 5-30 хвилин.",
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
         )
@@ -782,12 +782,25 @@ class MainWindow(QMainWindow):
             self.dialog.show()
 
             def dl():
-                mm = LocalModelManager()
-                mm.download_model(model, lambda p: self.dialog.update_progress(p))
-                self.dialog.downloaded = True
-                self.dialog.close()
+                try:
+                    mm = LocalModelManager()
+                    result = mm.download_model(
+                        model, lambda p: self.dialog.update_progress(p)
+                    )
+                    if result:
+                        self.dialog.downloaded = True
+                        self.dialog.close()
+                    else:
+                        self.dialog.close()
+                        self.show_error("Не вдалося завантажити модель")
+                except Exception as e:
+                    self.dialog.close()
+                    self.show_error(f"Помилка: {str(e)}")
 
-            threading.Thread(target=dl).start()
+            threading.Thread(target=dl, daemon=True).start()
+
+    def show_error(self, msg):
+        QMessageBox.critical(self, "Помилка", msg)
 
     def load_model(self, model):
         self.chat.append(
