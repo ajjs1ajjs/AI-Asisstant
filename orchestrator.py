@@ -351,6 +351,20 @@ class SiliconFlowProvider(BaseProvider):
                     if line.startswith("data:"):
                         yield line
 
+class LocalProvider(BaseProvider):
+    def __init__(self, inference):
+        super().__init__("", "")
+        self.inference = inference
+
+    async def chat(self, model: str, messages: list, tools: list = None):
+        import asyncio
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, self.inference.chat, messages, 2048, 0.7, tools)
+
+    async def chat_stream(self, model: str, messages: list, tools: list = None):
+        for chunk in self.inference.chat_stream(messages, tools=tools):
+            yield chunk
+
 
 class ModelOrchestrator:
     def __init__(self):

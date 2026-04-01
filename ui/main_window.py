@@ -201,6 +201,9 @@ class MainWindow(QMainWindow):
         if api_keys.get("deepseek"):
             self.orchestrator.add_provider("deepseek", DeepSeekProvider(api_keys["deepseek"]))
             self.orchestrator.add_model(Model("deepseek-chat", "deepseek", supports_tools=True, score=0.95, requires_key=True))
+            
+        # Local Provider
+        self.orchestrator.add_provider("local", LocalProvider(self.inference))
 
     def create_menu_bar(self):
         menubar = self.menuBar()
@@ -744,10 +747,26 @@ class MainWindow(QMainWindow):
 
         your_ram = self.model_manager.get_system_ram_gb()
         models = self.model_manager.get_compatible_models()
+        
+        # Clear old local models from orchestrator
+        if hasattr(self, 'orchestrator'):
+            self.orchestrator.models = [m for m in self.orchestrator.models if m.provider != "local"]
 
         for model in models:
             model["your_ram"] = f"{your_ram:.1f}"
             ram_needed = model["ram_required_gb"]
+            
+            # Register in orchestrator if downloaded
+            if hasattr(self, 'orchestrator') and self.model_manager.get_model_path(model["name"]):
+                from orchestrator import Model
+                self.orchestrator.add_model(Model(
+                    name=model["name"],
+                    provider="local",
+                    supports_tools=True,
+                    score=0.8,
+                    requires_key=False,
+                    is_free=True
+                ))
             if ram_needed > your_ram:
                 model["is_compatible"] = False
             elif ram_needed > your_ram * 0.75:
@@ -1396,6 +1415,8 @@ class MainWindow(QMainWindow):
                 elif name == "run_command":
                     out = self.agent_tools.run_command(args.get("cmd", ""))
                     res = f"Stdout:\n{out['stdout']}\nStderr:\n{out['stderr']}"
+                elif name == "create_directory":
+                    res = str(self.agent_tools.create_directory(args.get("path", "")))
             except Exception as e:
                 res = f"Error: {e}"
                 

@@ -24,6 +24,11 @@ class AgentTools:
             f.write(content)
         return True
 
+    def create_directory(self, path: str) -> bool:
+        full_path = os.path.join(self.root_dir, path)
+        os.makedirs(full_path, exist_ok=True)
+        return True
+
     def search_code(self, query: str, extensions: list = None) -> list:
         if extensions is None:
             extensions = [".py", ".js", ".ts", ".jsx", ".tsx"]
@@ -122,6 +127,10 @@ class AgentTools:
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, self.write_file, path, content)
 
+    async def create_directory_async(self, path: str) -> bool:
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, self.create_directory, path)
+
     async def search_code_async(self, query: str, extensions: list = None) -> list:
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, self.search_code, query, extensions)
@@ -205,6 +214,20 @@ TOOL_DEFINITIONS = [
                 "cmd": {"type": "string", "description": "Command to execute"}
             },
             "required": ["cmd"],
+        },
+    },
+    {
+        "name": "create_directory",
+        "description": "Create a new directory",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "Directory path relative to project root",
+                }
+            },
+            "required": ["path"],
         },
     },
 ]

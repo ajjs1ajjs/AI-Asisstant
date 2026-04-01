@@ -145,21 +145,34 @@ class ThoughtBubble(QFrame):
         self.bubble_layout.setSpacing(4)
         
         # Header
-        header = QHBoxLayout()
-        icon = QLabel("🤔")
-        icon.setFixedSize(14, 14)
-        status = QLabel("Міркування...")
-        status.setStyleSheet("color: #64748b; font-size: 10px; font-weight: 600; text-transform: uppercase;")
-        header.addWidget(icon)
-        header.addWidget(status)
-        header.addStretch()
-        self.bubble_layout.addLayout(header)
+        header_widget = QWidget()
+        header_layout = QHBoxLayout(header_widget)
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.setSpacing(8)
+        
+        icon = QLabel("🧠")
+        icon.setStyleSheet("font-size: 14px;")
+        
+        status = QLabel("ХІД ДУМОК (REASONING)")
+        status.setStyleSheet("""
+            color: #6366f1; 
+            font-size: 9px; 
+            font-weight: 800; 
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        """)
+        
+        header_layout.addWidget(icon)
+        header_layout.addWidget(status)
+        header_layout.addStretch()
+        self.bubble_layout.addWidget(header_widget)
 
         self.bubble.setStyleSheet("""
             QFrame {
-                background-color: #16191f;
-                border: 1px dashed #2d3139;
-                border-radius: 12px;
+                background-color: #1a1f26;
+                border: 1px solid #312e81;
+                border-left: 3px solid #6366f1;
+                border-radius: 8px;
             }
         """)
 
@@ -169,10 +182,10 @@ class ThoughtBubble(QFrame):
         self.content.setWordWrap(True)
         self.content.setStyleSheet("""
             QLabel {
-                color: #94a3b8;
-                font-size: 12px;
-                font-style: italic;
-                line-height: 1.4;
+                color: #cbd5e1;
+                font-size: 13px;
+                line-height: 1.6;
+                font-family: 'Segoe UI', sans-serif;
             }
         """)
         self.bubble_layout.addWidget(self.content)
@@ -456,30 +469,31 @@ class TypingIndicator(QFrame):
         layout.setSpacing(10)
 
         self.bubble = QFrame()
+        self.bubble.setFixedHeight(40)
         self.bubble.setStyleSheet("""
             QFrame {
-                background-color: #0f1115;
-                border: 1px solid #1a1d23;
-                border-radius: 15px;
-                border-top-left-radius: 4px;
-                padding: 4px 12px;
+                background-color: #1e1b4b;
+                border: 1px solid #4338ca;
+                border-radius: 20px;
+                padding: 0px 20px;
             }
         """)
         bl = QHBoxLayout(self.bubble)
-        bl.setSpacing(4)
+        bl.setContentsMargins(15, 0, 15, 0)
+        bl.setSpacing(12)
 
-        icon = QLabel("🧠")
-        icon.setStyleSheet("font-size: 14px;")
+        icon = QLabel("⚡")
+        icon.setStyleSheet("font-size: 16px;")
         bl.addWidget(icon)
 
-        self.label = QLabel("Думає")
-        self.label.setStyleSheet("color: #10b981; font-size: 11px; font-weight: 600; text-transform: uppercase;")
+        self.label = QLabel("Асистент готує відповідь...")
+        self.label.setStyleSheet("color: #a5b4fc; font-size: 12px; font-weight: 600;")
         bl.addWidget(self.label)
 
         self.dots = []
         for _ in range(3):
-            dot = QLabel("•")
-            dot.setStyleSheet("color: #3b82f6; font-size: 20px;")
+            dot = QLabel("●")
+            dot.setStyleSheet("color: #818cf8; font-size: 18px;")
             bl.addWidget(dot)
             self.dots.append(dot)
             
@@ -497,5 +511,7 @@ class TypingIndicator(QFrame):
     def animate(self):
         self.dot_index = (self.dot_index + 1) % 4
         for i, dot in enumerate(self.dots):
-            dot.setOpacity(1.0 if i < self.dot_index else 0.2) # Use style for fake opacity
-            dot.setStyleSheet(f"color: {'#3b82f6' if i < self.dot_index else '#2d3139'}; font-size: 20px;")
+            active = i < self.dot_index
+            color = "#818cf8" if active else "#312e81"
+            scale = "font-size: 20px; font-weight: bold;" if active else "font-size: 18px;"
+            dot.setStyleSheet(f"color: {color}; {scale}")
