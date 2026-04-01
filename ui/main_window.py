@@ -10,7 +10,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from PySide6.QtCore import Qt, QTimer, QMimeData, QThread, Signal
-from PySide6.QtGui import QColor, QDrag, QPainter, QPixmap, QKeySequence, QIcon
+from PySide6.QtGui import QColor, QDrag, QPainter, QPixmap, QKeySequence, QIcon, QCursor
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -32,6 +32,7 @@ from PySide6.QtWidgets import (
     QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
+    QInputDialog,
 )
 
 from context_engine import ContextEngine
