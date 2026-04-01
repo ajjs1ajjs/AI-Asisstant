@@ -40,7 +40,7 @@ from local_engine import LocalInference, get_inference
 from model_manager import LocalModelManager
 from settings_dialog import SettingsDialog
 from settings import get_settings
-from orchestrator import ModelOrchestrator, Model, GroqProvider, OpenRouterProvider, DeepSeekProvider, QwenProvider
+from orchestrator import ModelOrchestrator, Model, GroqProvider, OpenRouterProvider, DeepSeekProvider, QwenProvider, LocalProvider
 from agent_tools import AgentTools, TOOL_DEFINITIONS
 import asyncio
 
@@ -758,7 +758,6 @@ class MainWindow(QMainWindow):
             
             # Register in orchestrator if downloaded
             if hasattr(self, 'orchestrator') and self.model_manager.get_model_path(model["name"]):
-                from orchestrator import Model
                 self.orchestrator.add_model(Model(
                     name=model["name"],
                     provider="local",
