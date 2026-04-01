@@ -78,10 +78,15 @@ class GroqProvider(BaseProvider):
             payload["tools"] = tools
 
         async with httpx.AsyncClient(timeout=None) as client:
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Accept": "text/event-stream",
+                "Content-Type": "application/json"
+            }
             async with client.stream(
                 "POST",
                 f"{self.base_url}/chat/completions",
-                headers={"Authorization": f"Bearer {self.api_key}"},
+                headers=headers,
                 json=payload,
             ) as r:
                 async for line in r.aiter_lines():
@@ -122,10 +127,15 @@ class DeepSeekProvider(BaseProvider):
             payload["tools"] = tools
 
         async with httpx.AsyncClient(timeout=None) as client:
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Accept": "text/event-stream",
+                "Content-Type": "application/json"
+            }
             async with client.stream(
                 "POST",
                 f"{self.base_url}/chat/completions",
-                headers={"Authorization": f"Bearer {self.api_key}"},
+                headers=headers,
                 json=payload,
             ) as r:
                 async for line in r.aiter_lines():
@@ -192,11 +202,16 @@ class QwenProvider(BaseProvider):
             if tools:
                 payload["tools"] = tools
 
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Accept": "text/event-stream",
+                "Content-Type": "application/json"
+            }
             async with httpx.AsyncClient(timeout=None) as client:
                 async with client.stream(
                     "POST",
                     f"{self.base_url}/chat/completions",
-                    headers={"Authorization": f"Bearer {self.api_key}"},
+                    headers=headers,
                     json=payload,
                 ) as r:
                     async for line in r.aiter_lines():
@@ -205,9 +220,11 @@ class QwenProvider(BaseProvider):
         else:
             # HuggingFace real streaming
             url = f"{self.base_url}/{model}/v1/chat/completions"
-            headers = {}
-            if self.api_key:
-                headers["Authorization"] = f"Bearer {self.api_key}"
+            headers = {
+                "Authorization": f"Bearer {self.api_key}" if self.api_key else "",
+                "Accept": "text/event-stream",
+                "Content-Type": "application/json"
+            }
 
             async with httpx.AsyncClient(timeout=None) as client:
                 async with client.stream(
@@ -267,6 +284,8 @@ class OpenRouterProvider(BaseProvider):
             "Authorization": f"Bearer {self.api_key}",
             "HTTP-Referer": "http://localhost:8000",
             "X-Title": "AI Coding IDE",
+            "Accept": "text/event-stream",
+            "Content-Type": "application/json"
         }
 
         async with httpx.AsyncClient(timeout=None) as client:
@@ -316,11 +335,16 @@ class SiliconFlowProvider(BaseProvider):
         if tools:
             payload["tools"] = tools
 
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Accept": "text/event-stream",
+            "Content-Type": "application/json"
+        }
         async with httpx.AsyncClient(timeout=None) as client:
             async with client.stream(
                 "POST",
                 f"{self.base_url}/chat/completions",
-                headers={"Authorization": f"Bearer {self.api_key}"},
+                headers=headers,
                 json=payload,
             ) as r:
                 async for line in r.aiter_lines():

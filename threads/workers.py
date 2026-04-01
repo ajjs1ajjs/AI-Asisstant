@@ -61,6 +61,7 @@ class AsyncChatWorker(QThread):
         self.full_response = ""
         self.is_tool_call = False
         self.is_running = True
+        self.in_thought_block = False # Heuristic state
 
     def stop(self):
         self.is_running = False
@@ -102,8 +103,34 @@ class AsyncChatWorker(QThread):
 
                                     if "content" in delta and delta["content"]:
                                         content = delta["content"]
-                                        self.full_response += content
-                                        self.chunk_received.emit(content)
+                                        
+                                        # Heuristic Tag Detection
+                                        if "<thought>" in content:
+                                            self.in_thought_block = True
+                                            content = content.replace("<thought>", "")
+                                        
+                                        if "</thought>" in content:
+                                            parts = content.split("</thought>")
+                                            thought_part = parts[0]
+                                            main_part = parts[1] if len(parts) > 1 else ""
+                                            
+                                            if thought_part:
+                                                self.thought_received.emit(thought_part)
+                                            
+                                            self.in_thought_block = False
+                                            if main_part:
+                                                self.full_response += main_part
+                                                self.chunk_received.emit(main_part)
+                                            continue
+
+                                        if not content:
+                                            continue
+
+                                        if self.in_thought_block:
+                                            self.thought_received.emit(content)
+                                        else:
+                                            self.full_response += content
+                                            self.chunk_received.emit(content)
                                 except json.JSONDecodeError:
                                     pass
                         if self.is_running:

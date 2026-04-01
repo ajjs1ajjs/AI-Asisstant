@@ -102,6 +102,7 @@ class ChatBubble(QFrame):
         # Message Content
         self.content = QLabel(self.text)
         self.content.setWordWrap(True)
+        self.content.setTextFormat(Qt.MarkdownText)
         self.content.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.content.setStyleSheet("""
             QLabel {
@@ -164,6 +165,7 @@ class ThoughtBubble(QFrame):
 
         # Thought Content
         self.content = QLabel(self.text)
+        self.content.setTextFormat(Qt.MarkdownText)
         self.content.setWordWrap(True)
         self.content.setStyleSheet("""
             QLabel {
