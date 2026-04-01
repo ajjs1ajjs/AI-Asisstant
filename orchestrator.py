@@ -194,6 +194,66 @@ class QwenProvider(BaseProvider):
             await asyncio.sleep(0.01)
 
 
+class OpenRouterProvider(BaseProvider):
+    """
+    OpenRouter - Aggregator for all models
+    ✅ Access to Claude, GPT-4o, Llama 3
+    ✅ Supports tool calls
+    """
+
+    def __init__(self, api_key: str):
+        super().__init__(api_key, "https://openrouter.ai/api/v1")
+        self.models = [
+            "anthropic/claude-3.5-sonnet",
+            "openai/gpt-4o",
+            "meta-llama/llama-3.1-70b-instruct",
+            "google/gemini-1.5-pro",
+        ]
+
+    async def chat(self, model: str, messages: list, tools: list = None):
+        payload = {"model": model, "messages": messages, "max_tokens": 4096}
+        if tools:
+            payload["tools"] = tools
+
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "HTTP-Referer": "http://localhost:8000",
+            "X-Title": "AI Coding IDE",
+        }
+
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(
+                f"{self.base_url}/chat/completions",
+                headers=headers,
+                json=payload,
+            )
+            if response.status_code == 200:
+                return response.json()
+            raise Exception(f"OpenRouter Error: {response.status_code}")
+
+    async def chat_stream(self, model: str, messages: list, tools: list = None):
+        payload = {"model": model, "messages": messages, "stream": True}
+        if tools:
+            payload["tools"] = tools
+
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "HTTP-Referer": "http://localhost:8000",
+            "X-Title": "AI Coding IDE",
+        }
+
+        async with httpx.AsyncClient(timeout=None) as client:
+            async with client.stream(
+                "POST",
+                f"{self.base_url}/chat/completions",
+                headers=headers,
+                json=payload,
+            ) as r:
+                async for line in r.aiter_lines():
+                    if line.startswith("data:"):
+                        yield line
+
+
 class SiliconFlowProvider(BaseProvider):
     """
     SiliconFlow - FREE Qwen models
@@ -335,7 +395,10 @@ class ModelOrchestrator:
 
             try:
                 response = await provider.chat(model.name, messages, tools)
-                return response["choices"][0]["message"]["content"]
+                message = response["choices"][0]["message"]
+                if "tool_calls" in message and message["tool_calls"]:
+                    return message
+                return message.get("content", "")
             except Exception as e:
                 last_error = e
                 model.cooldown_until = time.time() + 60

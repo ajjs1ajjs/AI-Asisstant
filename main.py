@@ -9,7 +9,7 @@ from datetime import datetime
 from pathlib import Path
 
 from dotenv import load_dotenv
-from PySide6.QtCore import Qt, QTimer, QMimeData
+from PySide6.QtCore import Qt, QTimer, QMimeData, QThread, Signal
 from PySide6.QtGui import QColor, QDrag, QPainter, QPixmap, QKeySequence, QIcon
 from PySide6.QtWidgets import (
     QApplication,
@@ -37,6 +37,11 @@ from PySide6.QtWidgets import (
 from context_engine import ContextEngine
 from local_engine import LocalInference, get_inference
 from model_manager import LocalModelManager
+from settings_dialog import SettingsDialog
+from settings import get_settings
+from orchestrator import ModelOrchestrator, Model, GroqProvider, OpenRouterProvider, DeepSeekProvider, QwenProvider
+from agent_tools import AgentTools, TOOL_DEFINITIONS
+import asyncio
 
 CONFIG_FILE = Path.home() / ".ai-ide" / "config.json"
 
@@ -310,6 +315,58 @@ class TypingIndicator(QFrame):
         self.current_dot = (self.current_dot + 1) % 3
 
 
+class AsyncChatWorker(QThread):
+    chunk_received = Signal(str)
+    tool_called = Signal(dict)
+    finished_success = Signal(str)
+    error = Signal(str)
+
+    def __init__(self, orchestrator, messages, task="chat", tools=None):
+        super().__init__()
+        self.orchestrator = orchestrator
+        self.messages = messages
+        self.task = task
+        self.tools = tools
+        self.full_response = ""
+        self.is_tool_call = False
+
+    def run(self):
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        async def fetch():
+            try:
+                if self.tools:
+                    res = await self.orchestrator.request(self.messages, task=self.task, tools=self.tools)
+                    if isinstance(res, dict) and "tool_calls" in res:
+                        self.is_tool_call = True
+                        self.full_response = res
+                        self.tool_called.emit(res)
+                    else:
+                        self.full_response = res
+                        self.finished_success.emit(str(self.full_response))
+                else:
+                    async for chunk in self.orchestrator.stream_request(self.messages, task=self.task):
+                        if chunk.startswith("data:"):
+                            data_str = chunk[5:].strip()
+                            if data_str == "[DONE]":
+                                continue
+                            try:
+                                data = json.loads(data_str)
+                                delta = data.get("choices", [{}])[0].get("delta", {})
+                                if "content" in delta and delta["content"]:
+                                    content = delta["content"]
+                                    self.full_response += content
+                                    self.chunk_received.emit(content)
+                            except json.JSONDecodeError:
+                                pass
+                    self.finished_success.emit(str(self.full_response))
+            except Exception as e:
+                self.error.emit(str(e))
+                
+        loop.run_until_complete(fetch())
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -391,12 +448,16 @@ class MainWindow(QMainWindow):
         self.inference = get_inference()
         self.context_engine = ContextEngine()
         self.editors = find_editors()
+        self.settings = get_settings()
+        self.agent_tools = AgentTools(os.getcwd())
+        self.setup_orchestrator()
 
         self.current_model = None
         self.current_file = None
         self.chat_history = []
         self.project_path = None
         self.is_generating = False
+        self.attached_files = []  # Прикріплені файли
 
         config = load_config()
         self.last_project = config.get("last_project", "")
@@ -407,6 +468,20 @@ class MainWindow(QMainWindow):
 
         if self.last_project and os.path.exists(self.last_project):
             self.load_project(self.last_project)
+
+    def setup_orchestrator(self):
+        self.orchestrator = ModelOrchestrator()
+        api_keys = self.settings.settings.api_keys
+        
+        if api_keys.get("groq"):
+            self.orchestrator.add_provider("groq", GroqProvider(api_keys["groq"]))
+            self.orchestrator.add_model(Model("llama-3.1-70b-versatile", "groq", supports_tools=True, score=0.9, requires_key=True))
+        if api_keys.get("openrouter"):
+            self.orchestrator.add_provider("openrouter", OpenRouterProvider(api_keys["openrouter"]))
+            self.orchestrator.add_model(Model("anthropic/claude-3.5-sonnet", "openrouter", supports_tools=True, score=1.0, requires_key=True))
+        if api_keys.get("deepseek"):
+            self.orchestrator.add_provider("deepseek", DeepSeekProvider(api_keys["deepseek"]))
+            self.orchestrator.add_model(Model("deepseek-chat", "deepseek", supports_tools=True, score=0.95, requires_key=True))
 
     def create_menu_bar(self):
         menubar = self.menuBar()
@@ -425,10 +500,18 @@ class MainWindow(QMainWindow):
         edit_menu.addAction("📋 Копіювати історію", self.copy_history)
         edit_menu.addSeparator()
         edit_menu.addAction("📝 Очистити контекст", self.clear_context)
+        edit_menu.addSeparator()
+        edit_menu.addAction("⚙️ Налаштування", self.open_settings)
 
         model_menu = menubar.addMenu("🧠 Модель")
         model_menu.addAction("🔄 Оновити список", self.refresh_models)
         model_menu.addAction("🗑️ Видалити модель", self.delete_current_model)
+
+    def open_settings(self):
+        dlg = SettingsDialog(self)
+        if dlg.exec():
+            # Setup orchestrator again if API keys changed
+            self.setup_orchestrator()
 
     def clear_chat(self):
         self.chat.clear()
@@ -457,6 +540,71 @@ class MainWindow(QMainWindow):
             )
             if model:
                 self.delete_model(model)
+
+    def _start_ai_generation(self):
+        """Запустити генерацію AI відповіді"""
+        self.is_generating = True
+        self.work_status.setText("Думає...")
+        self.status_icon.setStyleSheet("color: #0078d4; font-size: 10px;")
+        self.work_status.parent().setStyleSheet("""
+            QFrame {
+                background-color: #1a2a3a;
+                border-radius: 12px;
+                padding: 4px 12px;
+            }
+        """)
+        self.typing.start()
+
+        self._run_orchestrator_chat(tools_mode=False)
+
+    def _analyze_project_structure(self) -> str:
+        """Аналізувати структуру проекту"""
+        if not self.project_path:
+            return ""
+
+        analysis = []
+        analysis.append(f"📁 Project: {self.project_path}")
+        analysis.append("=" * 60)
+
+        total_files = 0
+        total_lines = 0
+        extensions = {}
+
+        for root, dirs, files in os.walk(self.project_path):
+            dirs[:] = [d for d in dirs if d not in [".git", "__pycache__", "node_modules", "venv", "dist", "build"]]
+            for file in files:
+                ext = os.path.splitext(file)[1]
+                extensions[ext] = extensions.get(ext, 0) + 1
+                total_files += 1
+                filepath = os.path.join(root, file)
+                try:
+                    with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+                        total_lines += len(f.readlines())
+                except:
+                    pass
+
+        analysis.append(f"📊 Files: {total_files} | Lines: {total_lines:,}")
+        analysis.append(f"📎 Extensions: {dict(sorted(extensions.items(), key=lambda x: x[1], reverse=True)[:8])}")
+
+        # Структура
+        analysis.append("\n📂 Structure:")
+        for root, dirs, files in os.walk(self.project_path):
+            level = root.replace(self.project_path, '').count(os.sep)
+            if level > 2:
+                continue
+            indent = '  ' * level
+            dirs[:] = [d for d in dirs if d not in [".git", "__pycache__", "node_modules", "venv"]]
+            analysis.append(f"{indent}📁 {os.path.basename(root)}/")
+            for file in files[:3]:
+                analysis.append(f"{indent}  📄 {file}")
+
+        # Мови
+        lang_map = {".py": "Python", ".js": "JavaScript", ".ts": "TypeScript", ".java": "Java", ".cpp": "C++", ".cs": "C#", ".go": "Go", ".rs": "Rust"}
+        langs = [lang_map.get(ext, ext) for ext in extensions.keys() if ext in lang_map]
+        if langs:
+            analysis.append(f"\n💻 Languages: {', '.join(langs)}")
+
+        return "\n".join(analysis)
 
     def init_ui(self):
         central = QWidget()
@@ -717,7 +865,7 @@ class MainWindow(QMainWindow):
                 padding: 16px;
             }
         """)
-        rl.addWidget(self.chat)
+        rl.addWidget(self.chat, 1)  # Stretch factor = 1
 
         # Typing
         self.typing = TypingIndicator()
@@ -726,17 +874,19 @@ class MainWindow(QMainWindow):
 
         # Input
         inp = QFrame()
-        inp.setFixedHeight(90)
+        inp.setFixedHeight(140)
         inp.setStyleSheet("QFrame { background-color: #2d2d30; }")
         il = QVBoxLayout(inp)
         il.setContentsMargins(12, 10, 12, 10)
         il.setSpacing(6)
 
         self.chat_input = QTextEdit()
-        self.chat_input.setMaximumHeight(45)
-        self.chat_input.setPlaceholderText("Ask AI...")
+        self.chat_input.setMinimumHeight(60)
+        self.chat_input.setMaximumHeight(100)
+        self.chat_input.setPlaceholderText("Ask AI... (Ctrl+V для вставки, Drag&Drop для файлів)")
         self.chat_input.keyPressEvent = self.key_press
-        self.chat_input.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.chat_input.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.chat_input.setAcceptDrops(True)  # Дозволити drag-and-drop
         self.chat_input.setStyleSheet("""
             QTextEdit {
                 background-color: #1e1e1e;
@@ -752,7 +902,29 @@ class MainWindow(QMainWindow):
         """)
         il.addWidget(self.chat_input)
 
+        # Файли
+        self.files_label = QLabel("")
+        self.files_label.setStyleSheet("color: #888; font-size: 11px; font-style: italic;")
+        self.files_label.setWordWrap(True)
+        il.addWidget(self.files_label)
+
         sl = QHBoxLayout()
+        
+        # Кнопка додавання файлів
+        attach_btn = QPushButton("📎 Файл")
+        attach_btn.setFixedSize(70, 28)
+        attach_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #3e3e3e;
+                color: #d4d4d4;
+                border-radius: 6px;
+                font-size: 11px;
+            }
+            QPushButton:hover { background-color: #4e4e4e; }
+        """)
+        attach_btn.clicked.connect(self.attach_file)
+        sl.addWidget(attach_btn)
+        
         send_btn = QPushButton("➤ Send")
         send_btn.setStyleSheet(
             "background-color: #0e639c; padding: 6px 16px; font-size: 12px;"
@@ -762,9 +934,13 @@ class MainWindow(QMainWindow):
         sl.addStretch()
         il.addLayout(sl)
 
-        rl.addWidget(inp)
+        rl.addWidget(inp, 0)  # Input container - no stretch
         splitter.addWidget(right)
         layout.addWidget(splitter)
+
+        # Stretch factors
+        splitter.setStretchFactor(0, 0)  # Sidebar - fixed
+        splitter.setStretchFactor(1, 1)  # Right - expandable
 
         if not self.last_project or not os.path.exists(self.last_project):
             self.load_project(os.getcwd())
@@ -965,13 +1141,17 @@ class MainWindow(QMainWindow):
         cfg = load_config()
         cfg["last_project"] = path
         save_config(cfg)
+        
+        # Індексація проекту
         self.chat.append(
-            "<div style='color: #888; font-style: italic; padding: 8px;'>📖 Індексація...</div>"
+            "<div style='color: #888; font-style: italic; padding: 8px;'>📖 Індексація проекту...</div>"
         )
-        self.context_engine.index_project(path)
-        self.context_label.setText(f"🧠 {len(self.context_engine.chunks)}")
+        stats = self.context_engine.index_project(path)
+        self.context_label.setText(f"🧠 {stats['files_indexed']}")
         self.chat.append(
-            f"<div style='background: #1e3a2a; padding: 10px; border-radius: 8px; margin: 4px 0;'><span style='color: #4ec9b0;'>✓ Проіндексовано: {len(self.context_engine.chunks)} файлів</span></div>"
+            f"<div style='background: #1e3a2a; padding: 10px; border-radius: 8px; margin: 4px 0;'>"
+            f"<span style='color: #4ec9b0;'>✓ Проіндексовано: {stats['files_indexed']} файлів, "
+            f"{stats['chunks_added']} чанків</span></div>"
         )
 
     def refresh_files(self):
@@ -1166,6 +1346,91 @@ class MainWindow(QMainWindow):
                 )
             self.chat_history.clear()
 
+    def attach_file(self):
+        """Прикріпити файл до чату"""
+        from PySide6.QtWidgets import QFileDialog
+        
+        file_paths, _ = QFileDialog.getOpenFileNames(
+            self,
+            "Оберіть файли",
+            "",
+            "Text Files (*.py *.md *.txt *.json *.yaml *.yml *.js *.ts *.html *.css);;"
+            "All Files (*)"
+        )
+        
+        for path in file_paths:
+            self._add_file_to_chat(path)
+
+    def _add_file_to_chat(self, file_path):
+        """Додати файл до списку прикріплених"""
+        if file_path in self.attached_files:
+            return
+        
+        self.attached_files.append(file_path)
+        self._update_files_label()
+
+    def _update_files_label(self):
+        """Оновити мітку файлів"""
+        if not self.attached_files:
+            self.files_label.setText("")
+            return
+        
+        names = [os.path.basename(f) for f in self.attached_files]
+        if len(names) <= 3:
+            self.files_label.setText("📎 " + ", ".join(names))
+        else:
+            self.files_label.setText(f"📎 {len(self.attached_files)} файлів")
+
+    def clear_attached_files(self):
+        """Очистити прикріплені файли"""
+        self.attached_files.clear()
+        self._update_files_label()
+
+    def read_file_content(self, file_path):
+        """Прочитати вміст файлу"""
+        ext = os.path.splitext(file_path)[1].lower()
+        
+        # Текстові файли
+        text_extensions = ['.py', '.md', '.txt', '.json', '.yaml', '.yml', 
+                          '.js', '.ts', '.jsx', '.tsx', '.html', '.css',
+                          '.cpp', '.c', '.h', '.java', '.cs', '.go', '.rs',
+                          '.php', '.rb', '.swift', '.sh', '.bat', '.xml', '.csv']
+        
+        if ext in text_extensions:
+            try:
+                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    content = f.read()
+                return f"📄 Файл: {os.path.basename(file_path)}\n\n```{ext[1:]}\n{content}\n```"
+            except Exception as e:
+                return f"❌ Помилка читання {os.path.basename(file_path)}: {e}"
+        
+        # Зображення
+        image_extensions = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp']
+        if ext in image_extensions:
+            return f"🖼️ Зображення: {os.path.basename(file_path)}\n\n(Локальні моделі не підтримують аналіз зображень. Використайте хмарний API з ключем.)"
+        
+        # Інші файли
+        return f"📁 Файл: {os.path.basename(file_path)} ({ext}, {os.path.getsize(file_path)} байт)"
+
+    def dropEvent(self, event):
+        """Обробка drop event"""
+        if event.mimeData().hasUrls():
+            for url in event.mimeData().urls():
+                if url.isLocalFile():
+                    file_path = url.toLocalFile()
+                    if os.path.isfile(file_path):
+                        self._add_file_to_chat(file_path)
+            event.accept()
+        else:
+            super().dropEvent(event)
+
+    def dragEnterEvent(self, event):
+        """Обробка drag enter event"""
+        if event.mimeData().hasUrls():
+            event.accept()
+        else:
+            super().dragEnterEvent(event)
+
     def key_press(self, e):
         if e.key() == Qt.Key_Return and not e.modifiers() & Qt.ShiftModifier:
             self.send()
@@ -1174,7 +1439,7 @@ class MainWindow(QMainWindow):
 
     def send(self):
         text = self.chat_input.toPlainText().strip()
-        if not text:
+        if not text and not self.attached_files:
             return
         if not self.current_model:
             self.chat.append(
@@ -1184,7 +1449,71 @@ class MainWindow(QMainWindow):
         if self.is_generating:
             return
 
-        text_lower = text.lower()
+        # Додаємо вміст файлів до тексту
+        if self.attached_files:
+            file_contents = []
+            for file_path in self.attached_files:
+                content = self.read_file_content(file_path)
+                file_contents.append(content)
+            
+            if text:
+                full_text = text + "\n\n" + "\n\n".join(file_contents)
+            else:
+                full_text = "\n\n".join(file_contents)
+            
+            # Показуємо файли в чаті
+            files_display = ", ".join([os.path.basename(f) for f in self.attached_files])
+            self.chat.append(
+                f"<div style='background: #2a3a2a; padding: 8px; border-radius: 8px; margin: 4px 0;'>"
+                f"<span style='color: #4ec9b0;'>📎 Прикріплені файли: {files_display}</span></div>"
+            )
+            
+            # Очищаємо список файлів
+            self.attached_files.clear()
+            self._update_files_label()
+        else:
+            full_text = text
+
+        text_lower = full_text.lower()
+
+        # ========== АНАЛІЗ ПРОЕКТУ ==========
+        code_analysis_patterns = [
+            "проаналізуй код", "аналіз коду", "аналіз проекту", "проаналізуй проект",
+            "знайди помилки", "помилки в коді", "баги в коді", "знайди баги",
+            "перевір код", "аудит коду", "рефакторинг", "оптимізуй код",
+            "code analysis", "analyze code", "find bugs", "code review", "refactor",
+        ]
+
+        is_code_analysis = any(p in text_lower for p in code_analysis_patterns)
+
+        if is_code_analysis and self.project_path and self.context_engine.chunks:
+            # Отримуємо контекст
+            ctx = self.context_engine.get_context_for_query(text, k=10)
+            
+            # Аналізуємо структуру
+            analysis = self._analyze_project_structure()
+            
+            if ctx or analysis:
+                full_context = "=== PROJECT ANALYSIS ===\n"
+                if analysis:
+                    full_context += analysis + "\n\n"
+                if ctx:
+                    full_context += "=== CODE CONTEXT ===\n" + ctx + "\n\n"
+                full_context += "=== TASK ===\n" + text
+                
+                self.chat.append(
+                    "<div style='background: #2a3a2a; padding: 10px; border-radius: 8px; margin: 4px 0;'>"
+                    "<span style='color: #4ec9b0;'>🔍 Аналіз проекту з " + str(len(self.context_engine.chunks)) + " чанків...</span></div>"
+                )
+                
+                system_prompt = "Ти - досвідчений розробник ПЗ. Проаналізуй код проекту: структуру, мови, архітектуру, проблеми, рекомендації. Відповідай українською."
+                
+                if not self.chat_history or self.chat_history[0].get("role") != "system":
+                    self.chat_history.insert(0, {"role": "system", "content": system_prompt})
+                
+                self.chat_history.append({"role": "user", "content": full_context})
+                self._start_ai_generation()
+                return
 
         # Check for image file references
         image_patterns = [
@@ -1233,7 +1562,7 @@ class MainWindow(QMainWindow):
             if self.context_engine.chunks
             else ""
         )
-        msg = f"Context:\n{ctx}\n\n{text}" if ctx else text
+        msg = f"Context:\n{ctx}\n\n{full_text}" if ctx else full_text
         self.chat_history.append({"role": "user", "content": msg})
 
         self.is_generating = True
@@ -1248,22 +1577,103 @@ class MainWindow(QMainWindow):
         """)
         self.typing.start()
 
-        response_data = {"ready": False, "response": None, "error": None}
+        self._run_orchestrator_chat(tools_mode=True)
 
-        def generate_response():
+    def _run_orchestrator_chat(self, tools_mode=True):
+        if not self.orchestrator.get_configured_models():
+            # Fallback to local
+            response_data = {"ready": False, "response": None, "error": None}
+            def generate_response():
+                try:
+                    response_data["response"] = self.inference.chat(self.chat_history)
+                    self.chat_history.append({"role": "assistant", "content": response_data["response"]})
+                    response_data["ready"] = True
+                except Exception as e:
+                    response_data["error"] = str(e)
+                    response_data["ready"] = True
+            import threading
+            threading.Thread(target=generate_response, daemon=True).start()
+            QTimer.singleShot(200, lambda: self.check_generation(response_data))
+            return
+
+        tools_to_pass = TOOL_DEFINITIONS if tools_mode else None
+        self.worker = AsyncChatWorker(self.orchestrator, self.chat_history, tools=tools_to_pass)
+        
+        self.chat.append("<hr><span style='color: #4ec9b0;'>🧠</span> ")
+        self.chat.moveCursor(self.chat.textCursor().End)
+        self.streaming_text = ""
+        
+        self.worker.chunk_received.connect(self._on_chunk)
+        self.worker.tool_called.connect(self._on_tool_call)
+        self.worker.finished_success.connect(self._on_chat_success)
+        self.worker.error.connect(self._on_chat_error)
+        self.worker.start()
+
+    def _on_chunk(self, chunk):
+        self.typing.stop()
+        self.chat.moveCursor(self.chat.textCursor().End)
+        self.chat.insertPlainText(chunk)
+        self.chat.verticalScrollBar().setValue(self.chat.verticalScrollBar().maximum())
+        self.streaming_text += chunk
+
+    def _on_tool_call(self, message):
+        self.chat_history.append(message)
+        for call in message.get("tool_calls", []):
+            name = call["function"]["name"]
             try:
-                response_data["response"] = self.inference.chat(self.chat_history)
-                self.chat_history.append(
-                    {"role": "assistant", "content": response_data["response"]}
-                )
-                response_data["ready"] = True
+                args = json.loads(call["function"]["arguments"])
+            except:
+                args = {}
+            
+            self.chat.append(f"<div style='color: #d6701e; margin-left: 10px;'>🛠️ Виконання інструменту: {name}</div>")
+            
+            res = "Tool unknown"
+            try:
+                if name == "read_file":
+                    res = self.agent_tools.read_file(args.get("path", ""))
+                elif name == "write_file":
+                    res = str(self.agent_tools.write_file(args.get("path", ""), args.get("content", "")))
+                elif name == "search_code":
+                    res = json.dumps(self.agent_tools.search_code(args.get("query", "")))
+                elif name == "run_command":
+                    out = self.agent_tools.run_command(args.get("cmd", ""))
+                    res = f"Stdout:\\n{out['stdout']}\\nStderr:\\n{out['stderr']}"
             except Exception as e:
-                response_data["error"] = str(e)
-                response_data["ready"] = True
+                res = f"Error: {e}"
+                
+            self.chat.append(f"<div style='color: #888; margin-left: 20px;'>=> {str(res)[:100]}...</div>")
+            
+            self.chat_history.append({
+                "role": "tool",
+                "tool_call_id": call["id"],
+                "name": name,
+                "content": str(res)
+            })
+            
+        # Recursive call to continue reasoning
+        self._run_orchestrator_chat(tools_mode=True)
 
-        threading.Thread(target=generate_response, daemon=True).start()
+    def _on_chat_success(self, full_response):
+        if not hasattr(self.worker, 'is_tool_call') or not self.worker.is_tool_call:
+            self.chat_history.append({"role": "assistant", "content": full_response})
+            self._finish_generation()
 
-        QTimer.singleShot(200, lambda: self.check_generation(response_data))
+    def _on_chat_error(self, err):
+        self.chat.append(f"<div style='color: #f44747;'>✗ Помилка Orchestrator: {err}</div>")
+        self._finish_generation()
+
+    def _finish_generation(self):
+        self.is_generating = False
+        self.typing.stop()
+        self.work_status.setText("Готовий")
+        self.status_icon.setStyleSheet("color: #4ec9b0; font-size: 10px;")
+        self.work_status.parent().setStyleSheet("""
+            QFrame {
+                background-color: #1e3a2a;
+                border-radius: 12px;
+                padding: 4px 12px;
+            }
+        """)
 
     def check_generation(self, response_data):
         if self.is_generating and not response_data.get("ready"):

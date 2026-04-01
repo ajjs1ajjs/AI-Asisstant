@@ -127,8 +127,34 @@ class AgentTools:
         return await loop.run_in_executor(None, self.search_code, query, extensions)
 
     async def run_command_async(self, cmd: str, timeout: int = 30) -> Dict[str, Any]:
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, self.run_command, cmd, timeout)
+        try:
+            process = await asyncio.create_subprocess_shell(
+                cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=self.root_dir,
+            )
+            
+            try:
+                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
+            except asyncio.TimeoutError:
+                process.kill()
+                await process.communicate()
+                return {
+                    "success": False,
+                    "stdout": "",
+                    "stderr": f"Command timed out after {timeout}s",
+                    "returncode": -1,
+                }
+            
+            return {
+                "success": process.returncode == 0,
+                "stdout": stdout.decode("utf-8", errors="replace"),
+                "stderr": stderr.decode("utf-8", errors="replace"),
+                "returncode": process.returncode,
+            }
+        except Exception as e:
+            return {"success": False, "stdout": "", "stderr": str(e), "returncode": -1}
 
 
 TOOL_DEFINITIONS = [

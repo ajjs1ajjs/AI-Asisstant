@@ -1,9 +1,29 @@
+# GUI Framework
 PySide6>=6.6.0
+
+# HTTP Clients
 httpx>=0.25.0
+requests>=2.31.0
+
+# AI/ML
 faiss-cpu>=1.7.4
 numpy>=1.24.0
-aiofiles>=23.2.0
-python-dotenv>=1.0.0
-requests>=2.31.0
-psutil>=5.9.0
+sentence-transformers>=2.2.2
+
+# Local LLM
 llama-cpp-python>=0.2.50
+
+# Async & File I/O
+aiofiles>=23.2.0
+asyncio>=3.4.3
+
+# System
+psutil>=5.9.0
+python-dotenv>=1.0.0
+
+# Utilities
+typing-extensions>=4.8.0
+
+# Optional: For better performance
+# accelerate>=0.20.0  # PyTorch acceleration
+# torch>=2.0.0        # PyTorch (for sentence-transformers)
