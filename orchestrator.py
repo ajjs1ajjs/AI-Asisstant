@@ -187,11 +187,38 @@ class QwenProvider(BaseProvider):
                 raise Exception(f"HF Error: {response.status_code}")
 
     async def chat_stream(self, model: str, messages: list, tools: list = None):
-        result = await self.chat(model, messages, tools)
-        content = result["choices"][0]["message"]["content"]
-        for i in range(0, len(content), 10):
-            yield f'data: {{"choices": [{{"delta": {{"content": "{content[i : i + 10]}"}}}}]}}'
-            await asyncio.sleep(0.01)
+        if self.provider_type == "together":
+            payload = {"model": model, "messages": messages, "stream": True}
+            if tools:
+                payload["tools"] = tools
+
+            async with httpx.AsyncClient(timeout=None) as client:
+                async with client.stream(
+                    "POST",
+                    f"{self.base_url}/chat/completions",
+                    headers={"Authorization": f"Bearer {self.api_key}"},
+                    json=payload,
+                ) as r:
+                    async for line in r.aiter_lines():
+                        if line.startswith("data:"):
+                            yield line
+        else:
+            # HuggingFace real streaming
+            url = f"{self.base_url}/{model}/v1/chat/completions"
+            headers = {}
+            if self.api_key:
+                headers["Authorization"] = f"Bearer {self.api_key}"
+
+            async with httpx.AsyncClient(timeout=None) as client:
+                async with client.stream(
+                    "POST",
+                    url,
+                    headers=headers,
+                    json={"model": model, "messages": messages, "stream": True, "max_tokens": 4096},
+                ) as r:
+                    async for line in r.aiter_lines():
+                        if line.startswith("data:"):
+                            yield line
 
 
 class OpenRouterProvider(BaseProvider):
@@ -280,11 +307,25 @@ class SiliconFlowProvider(BaseProvider):
             raise Exception(f"SiliconFlow Error: {response.status_code}")
 
     async def chat_stream(self, model: str, messages: list, tools: list = None):
-        result = await self.chat(model, messages, tools)
-        content = result["choices"][0]["message"]["content"]
-        for i in range(0, len(content), 10):
-            yield f'data: {{"choices": [{{"delta": {{"content": "{content[i : i + 10]}"}}}}]}}'
-            await asyncio.sleep(0.01)
+        payload = {
+            "model": model, 
+            "messages": messages, 
+            "stream": True, 
+            "max_tokens": 4096
+        }
+        if tools:
+            payload["tools"] = tools
+
+        async with httpx.AsyncClient(timeout=None) as client:
+            async with client.stream(
+                "POST",
+                f"{self.base_url}/chat/completions",
+                headers={"Authorization": f"Bearer {self.api_key}"},
+                json=payload,
+            ) as r:
+                async for line in r.aiter_lines():
+                    if line.startswith("data:"):
+                        yield line
 
 
 class ModelOrchestrator:

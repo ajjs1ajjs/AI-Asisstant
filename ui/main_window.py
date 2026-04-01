@@ -183,6 +183,7 @@ class MainWindow(QMainWindow):
         self.refresh_models()
         
         self.current_bubble = None # For streaming
+        self.current_thought_bubble = None # For streaming thoughts
 
         if self.last_project and os.path.exists(self.last_project):
             self.load_project(self.last_project)
@@ -1330,10 +1331,13 @@ class MainWindow(QMainWindow):
         tools_to_pass = TOOL_DEFINITIONS if tools_mode else None
         self.worker = AsyncChatWorker(self.orchestrator, self.chat_history, tools=tools_to_pass)
         
-        self.current_bubble = self.add_chat_bubble("", "assistant")
+        self.current_bubble = None
+        self.current_thought_bubble = None
         self.streaming_text = ""
+        self.streaming_thought = ""
         
         self.worker.chunk_received.connect(self._on_chunk)
+        self.worker.thought_received.connect(self._on_thought)
         self.worker.tool_called.connect(self._on_tool_call)
         self.worker.finished_success.connect(self._on_chat_success)
         self.worker.error.connect(self._on_chat_error)
@@ -1344,16 +1348,35 @@ class MainWindow(QMainWindow):
 
     def _on_chunk(self, chunk):
         self.typing.stop()
+        if not self.current_bubble:
+            self.current_bubble = self.add_chat_bubble("", "assistant")
+            self.current_thought_bubble = None # Thought finished if content starts
+
         self.streaming_text += chunk
-        if self.current_bubble:
-            self.current_bubble.update_text(self.streaming_text)
+        self.current_bubble.update_text(self.streaming_text)
         
-        # Scroll to bottom smoothly
+        # Scroll to bottom
+        self.chat_scroll.verticalScrollBar().setValue(
+            self.chat_scroll.verticalScrollBar().maximum()
+        )
+
+    def _on_thought(self, chunk):
+        self.typing.stop()
+        if not self.current_thought_bubble:
+            from ui.components import ThoughtBubble
+            self.current_thought_bubble = ThoughtBubble("")
+            self.chat_layout.insertWidget(self.chat_layout.count() - 1, self.current_thought_bubble)
+        
+        self.streaming_thought += chunk
+        self.current_thought_bubble.update_text(self.streaming_thought)
+        
+        # Scroll to bottom
         self.chat_scroll.verticalScrollBar().setValue(
             self.chat_scroll.verticalScrollBar().maximum()
         )
 
     def _on_tool_call(self, message):
+        self.current_thought_bubble = None # Reset for next phase
         self.chat_history.append(message)
         for call in message.get("tool_calls", []):
             name = call["function"]["name"]
@@ -1389,6 +1412,7 @@ class MainWindow(QMainWindow):
         self._run_orchestrator_chat(tools_mode=True)
 
     def _on_chat_success(self, full_response):
+        self.current_thought_bubble = None
         if not hasattr(self.worker, 'is_tool_call') or not self.worker.is_tool_call:
             self.chat_history.append({"role": "assistant", "content": full_response})
             self._finish_generation()

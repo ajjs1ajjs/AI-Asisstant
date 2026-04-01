@@ -124,6 +124,65 @@ class ChatBubble(QFrame):
         self.text = text
         self.content.setText(text)
 
+class ThoughtBubble(QFrame):
+    """
+    Subtle Bubble for AI Reasoning/Thoughts.
+    """
+    def __init__(self, text="", parent=None):
+        super().__init__(parent)
+        self.text = text
+        self.setup_ui()
+
+    def setup_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(32, 4, 16, 4) # More indent from left
+        layout.setSpacing(0)
+
+        self.bubble = QFrame()
+        self.bubble_layout = QVBoxLayout(self.bubble)
+        self.bubble_layout.setContentsMargins(12, 8, 12, 8)
+        self.bubble_layout.setSpacing(4)
+        
+        # Header
+        header = QHBoxLayout()
+        icon = QLabel("🤔")
+        icon.setFixedSize(14, 14)
+        status = QLabel("Міркування...")
+        status.setStyleSheet("color: #64748b; font-size: 10px; font-weight: 600; text-transform: uppercase;")
+        header.addWidget(icon)
+        header.addWidget(status)
+        header.addStretch()
+        self.bubble_layout.addLayout(header)
+
+        self.bubble.setStyleSheet("""
+            QFrame {
+                background-color: #16191f;
+                border: 1px dashed #2d3139;
+                border-radius: 12px;
+            }
+        """)
+
+        # Thought Content
+        self.content = QLabel(self.text)
+        self.content.setWordWrap(True)
+        self.content.setStyleSheet("""
+            QLabel {
+                color: #94a3b8;
+                font-size: 12px;
+                font-style: italic;
+                line-height: 1.4;
+            }
+        """)
+        self.bubble_layout.addWidget(self.content)
+        
+        layout.addWidget(self.bubble)
+        self.bubble.setMaximumWidth(700)
+
+    def update_text(self, text):
+        self.text = text
+        self.content.setText(text)
+
+
 class DownloadDialog(QDialog):
     def __init__(self, model, parent=None):
         super().__init__(parent)

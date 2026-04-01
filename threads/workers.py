@@ -50,6 +50,7 @@ class AsyncChatWorker(QThread):
     finished_success = Signal(str)
     error = Signal(str)
     status_changed = Signal(str) # For "🧠 Thinking", "🛠️ Tool: xyz", etc.
+    thought_received = Signal(str) # For streaming reasoning/thoughts
 
     def __init__(self, orchestrator, messages, task="chat", tools=None):
         super().__init__()
@@ -91,8 +92,14 @@ class AsyncChatWorker(QThread):
                                 if data_str == "[DONE]":
                                     continue
                                 try:
-                                    data = json.loads(data_str)
                                     delta = data.get("choices", [{}])[0].get("delta", {})
+                                    
+                                    # Handle "Reasoning/Thought" fields
+                                    thought = delta.get("reasoning_content") or delta.get("thought")
+                                    if thought:
+                                        self.thought_received.emit(thought)
+                                        continue
+
                                     if "content" in delta and delta["content"]:
                                         content = delta["content"]
                                         self.full_response += content
