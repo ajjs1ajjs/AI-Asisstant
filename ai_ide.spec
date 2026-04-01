@@ -63,6 +63,10 @@ a = Analysis(
     datas=(datas_llama or []) + (datas_st or []) + (datas_faiss or []) + (datas_pyside or []) + [
         ('.env.example', '.'),
         ('icon.ico', '.'),
+        ('style.qss', '.'),
+        ('ui/main_window.py', 'ui'),
+        ('ui/components.py', 'ui'),
+        ('threads/workers.py', 'threads'),
     ] + [(f'{mod}.py', '.') for mod in local_modules],
     hiddenimports=(hiddenimports_llama or []) + (hiddenimports_st or []) + (hiddenimports_faiss or []) + (hiddenimports_pyside or []) + [
         'PySide6',
@@ -98,6 +102,9 @@ a = Analysis(
         'orchestrator',
         'agent_tools',
         'autocomplete',
+        'ui.main_window',
+        'ui.components',
+        'threads.workers',
         'typing_extensions',
         'PIL',
         'PIL.Image',
