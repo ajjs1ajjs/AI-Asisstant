@@ -1,105 +1,168 @@
-/* Головні кольори та стилі для AI Coding IDE */
+/* 🎨 AI Coding IDE - Premium Design System */
+
+/* Global Colors & Variables 
+   Slate: #0f1115
+   Darker Slate: #0a0c10
+   Lighter Slate: #1a1d23
+   Border: #2d3139
+   Accent (Cobalt): #3b82f6
+   Accent Hover: #2563eb
+   Text Primary: #f1f5f9
+   Text Secondary: #94a3b8
+   Success (Emerald): #10b981
+   Error (Rose): #f43f5e
+   Warning (Amber): #f59e0b
+*/
 
 QMainWindow {
-    background-color: #1e1e1e;
+    background-color: #0a0c10;
 }
 
 QWidget {
-    background-color: #1e1e1e;
-    color: #e0e0e0;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #0a0c10;
+    color: #f1f5f9;
+    font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
 }
 
-QTextEdit {
-    background-color: #1e1e1e;
-    color: #d4d4d4;
-    border: none;
-    padding: 10px;
-    font-size: 13px;
+/* ScrollBars */
+QScrollBar:vertical {
+    background: transparent;
+    width: 6px;
+    margin: 0px;
 }
 
-QTextEdit QScrollBar:vertical {
-    background-color: #1e1e1e;
-    width: 8px;
-    border-radius: 4px;
+QScrollBar::handle:vertical {
+    background: #2d3139;
+    min-height: 40px;
+    border-radius: 3px;
 }
 
-QTextEdit QScrollBar::handle:vertical {
-    background-color: #3e3e3e;
-    border-radius: 4px;
-    min-height: 30px;
+QScrollBar::handle:vertical:hover {
+    background: #3b82f6;
 }
 
-QTextEdit QScrollBar::handle:vertical:hover {
-    background-color: #0078d4;
-}
-
-QTextEdit QScrollBar::add-line:vertical, 
-QTextEdit QScrollBar::sub-line:vertical {
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
     height: 0px;
 }
 
+/* Buttons */
 QPushButton {
-    background-color: #0e639c;
+    background-color: #3b82f6;
     color: white;
     border: none;
-    border-radius: 6px;
+    border-radius: 8px;
     padding: 8px 16px;
-    font-weight: bold;
+    font-weight: 500;
+    letter-spacing: 0.1px;
 }
 
 QPushButton:hover {
-    background-color: #1177bb;
+    background-color: #2563eb;
 }
 
-QSplitter::handle {
-    background-color: #3e3e3e;
-    width: 2px;
+QPushButton:pressed {
+    background-color: #1d4ed8;
 }
 
-QSplitter::handle:hover {
-    background-color: #0078d4;
+QPushButton#send_btn {
+    background-color: #3b82f6;
+    font-weight: 600;
 }
 
-QScrollArea QScrollBar:vertical {
-    background-color: #252525;
-    width: 8px;
-    border-radius: 4px;
+/* Secondary Buttons */
+QPushButton#attach_btn, QPushButton#clear_btn {
+    background-color: #1a1d23;
+    border: 1px solid #2d3139;
+    color: #94a3b8;
 }
 
-QScrollArea QScrollBar::handle:vertical {
-    background-color: #3e3e3e;
-    border-radius: 4px;
-    min-height: 30px;
+QPushButton#attach_btn:hover {
+    background-color: #2d3139;
+    color: #f1f5f9;
 }
 
-QScrollArea QScrollBar::handle:vertical:hover {
-    background-color: #0078d4;
-}
-
+/* Menu Bar */
 QMenuBar {
-    background-color: #2d2d30;
-    color: #d4d4d4;
-    border-bottom: 1px solid #3e3e3e;
+    background-color: #0a0c10;
+    color: #94a3b8;
+    border-bottom: 1px solid #1a1d23;
+    padding: 2px 8px;
+}
+
+QMenuBar::item {
+    background: transparent;
+    padding: 6px 12px;
+    border-radius: 4px;
 }
 
 QMenuBar::item:selected {
-    background-color: #0e639c;
+    background: #1a1d23;
+    color: #f1f5f9;
 }
 
 QMenu {
-    background-color: #252525;
-    border: 1px solid #3e3e3e;
-    border-radius: 8px;
+    background-color: #0f1115;
+    border: 1px solid #2d3139;
+    border-radius: 10px;
     padding: 4px;
 }
 
 QMenu::item {
-    color: #d4d4d4;
-    padding: 8px 20px;
-    border-radius: 4px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    color: #e2e8f0;
 }
 
 QMenu::item:selected {
-    background-color: #0e639c;
+    background-color: #3b82f6;
+    color: white;
+}
+
+QMenu::separator {
+    height: 1px;
+    background: #1a1d23;
+    margin: 4px 8px;
+}
+
+/* Splitter */
+QSplitter::handle {
+    background-color: #1a1d23;
+}
+
+QSplitter::handle:hover {
+    background-color: #3b82f6;
+}
+
+/* Text Inputs */
+QTextEdit {
+    background-color: #0f1115;
+    color: #f1f5f9;
+    border: 1px solid #2d3139;
+    border-radius: 10px;
+    padding: 10px;
+    selection-background-color: #3b82f6;
+}
+
+QTextEdit:focus {
+    border: 1.5px solid #3b82f6;
+}
+
+/* Sidebar Containers */
+QFrame#sidebar_container {
+    background-color: #0f1115;
+    border-right: 1px solid #1a1d23;
+}
+
+QFrame#header_frame {
+    background-color: #0f1115;
+    border-bottom: 1px solid #1a1d23;
+}
+
+/* Labels */
+QLabel#section_title {
+    color: #94a3b8;
+    font-weight: 700;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }

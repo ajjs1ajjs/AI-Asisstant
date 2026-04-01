@@ -11,7 +11,7 @@ class LocalInference:
         self.current_model_path = None
         self.is_loaded = False
 
-    def load_model(self, model_path, n_ctx=2048):
+    def load_model(self, model_path, n_ctx=8192):
         try:
             from llama_cpp import Llama
             for n in ["llama_cpp", "llamacpp", "llama"]: 
@@ -26,20 +26,20 @@ class LocalInference:
             self.is_loaded = False
             raise
 
-    def generate(self, prompt, max_tokens=512, temperature=0.7):
+    def generate(self, prompt, max_tokens=2048, temperature=0.7):
         if not self.is_loaded: 
             raise Exception("Model not loaded")
-        stop = [chr(10)+chr(10), "User:", "user:"]
+        stop = ["User:", "user:", "System:", "system:"]
         result = self.model(prompt, max_tokens=max_tokens, temperature=temperature, stop=stop)
         return result["choices"][0]["text"]
 
-    def chat(self, messages, max_tokens=512, temperature=0.7):
+    def chat(self, messages, max_tokens=2048, temperature=0.7):
         if not self.is_loaded: 
             raise Exception("Model not loaded")
         prompt = self._format_messages(messages)
         return self.generate(prompt, max_tokens, temperature)
 
-    def chat_stream(self, messages, max_tokens=512, temperature=0.7):
+    def chat_stream(self, messages, max_tokens=2048, temperature=0.7):
         if not self.is_loaded: 
             raise Exception("Model not loaded")
         prompt = self._format_messages(messages)

@@ -79,7 +79,7 @@ def find_editors():
     return editors
 
 
-from ui.components import DownloadDialog, ModelCard, FileTree, TypingIndicator
+from ui.components import DownloadDialog, ModelCard, FileTree, TypingIndicator, ChatBubble
 from threads.workers import AsyncChatWorker
 
 class MainWindow(QMainWindow):
@@ -180,6 +180,8 @@ class MainWindow(QMainWindow):
         self.init_ui()
         self.create_menu_bar()
         self.refresh_models()
+        
+        self.current_bubble = None # For streaming
 
         if self.last_project and os.path.exists(self.last_project):
             self.load_project(self.last_project)
@@ -229,19 +231,26 @@ class MainWindow(QMainWindow):
             self.setup_orchestrator()
 
     def clear_chat(self):
-        self.chat.clear()
+        while self.chat_layout.count() > 1: # Keep the stretch
+            item = self.chat_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
         self.chat_history.clear()
 
     def clear_context(self):
         self.context_engine.chunks = []
         self.context_label.setText("🧠 0")
-        self.chat.append(
-            "<div style='background: #2a2a2e; padding: 10px; border-radius: 8px; margin: 4px 0;'><span style='color: #888;'>Контекст очищено</span></div>"
-        )
+        self.add_chat_bubble("Контекст очищено", "system")
 
     def copy_history(self):
-        text = self.chat.toPlainText()
-        QApplication.clipboard().setText(text)
+        text_lines = []
+        for i in range(self.chat_layout.count()):
+            item = self.chat_layout.itemAt(i)
+            if item.widget() and isinstance(item.widget(), ChatBubble):
+                role = item.widget().role
+                content = item.widget().text
+                text_lines.append(f"[{role.upper()}] {content}")
+        QApplication.clipboard().setText("\n\n".join(text_lines))
 
     def delete_current_model(self):
         if self.current_model:
@@ -405,9 +414,27 @@ class MainWindow(QMainWindow):
         pl.setContentsMargins(12, 12, 12, 12)
         pl.setSpacing(8)
 
+        ph = QHBoxLayout()
         proj_title = QLabel("📁 Проєкт")
         proj_title.setStyleSheet("color: #e0e0e0; font-weight: bold; font-size: 12px;")
-        pl.addWidget(proj_title)
+        ph.addWidget(proj_title)
+        
+        ph.addStretch()
+        refresh_btn = QPushButton("🔄")
+        refresh_btn.setFixedSize(24, 24)
+        refresh_btn.setCursor(QCursor(Qt.PointingHandCursor))
+        refresh_btn.setStyleSheet("""
+            QPushButton {
+                background: transparent;
+                color: #888;
+                font-size: 14px;
+                border: none;
+            }
+            QPushButton:hover { color: #3b82f6; }
+        """)
+        refresh_btn.clicked.connect(self.refresh_files)
+        ph.addWidget(refresh_btn)
+        pl.addLayout(ph)
 
         bl = QHBoxLayout()
         bl.setSpacing(6)
@@ -446,15 +473,17 @@ class MainWindow(QMainWindow):
         pl.addWidget(self.project_label)
 
         self.files = FileTree()
-        self.files.setMaximumHeight(180)
-        self.files.setStyleSheet("""
-            QTreeWidget {
-                background-color: #1e1e1e;
-                border: 1px solid #3e3e3e;
-                border-radius: 6px;
-                padding: 4px;
-            }
-        """)
+        self.files.setMinimumHeight(200)
+        
+        # Connect FileTree signals
+        self.files.file_open_requested.connect(self.open_file_path)
+        self.files.add_to_chat_requested.connect(self._add_file_to_chat)
+        self.files.new_file_requested.connect(self.new_file)
+        self.files.new_folder_requested.connect(self.new_folder)
+        self.files.refresh_requested.connect(self.refresh_files)
+        self.files.delete_requested.connect(self.delete_item)
+        self.files.rename_requested.connect(self.rename_item)
+        
         pl.addWidget(self.files)
 
         al = QHBoxLayout()
@@ -570,17 +599,21 @@ class MainWindow(QMainWindow):
         tl.addWidget(git_btn)
         rl.addWidget(top)
 
-        # Chat
-        self.chat = QTextEdit()
-        self.chat.setReadOnly(True)
-        self.chat.setStyleSheet("""
-            QTextEdit {
-                background-color: #1a1a1a;
-                border: none;
-                padding: 16px;
-            }
-        """)
-        rl.addWidget(self.chat, 1)  # Stretch factor = 1
+        # Chat Area
+        self.chat_scroll = QScrollArea()
+        self.chat_scroll.setWidgetResizable(True)
+        self.chat_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.chat_scroll.setStyleSheet("QScrollArea { background-color: #0a0c10; border: none; }")
+        
+        self.chat_widget = QWidget()
+        self.chat_widget.setStyleSheet("background-color: #0a0c10;")
+        self.chat_layout = QVBoxLayout(self.chat_widget)
+        self.chat_layout.setContentsMargins(10, 20, 10, 20)
+        self.chat_layout.setSpacing(0)
+        self.chat_layout.addStretch() # Push bubbles to the top
+        
+        self.chat_scroll.setWidget(self.chat_widget)
+        rl.addWidget(self.chat_scroll, 1)
 
         # Typing
         self.typing = TypingIndicator()
@@ -646,6 +679,26 @@ class MainWindow(QMainWindow):
         )
         send_btn.clicked.connect(self.send)
         sl.addWidget(send_btn)
+
+        self.stop_btn = QPushButton("⏹ Stop")
+        self.stop_btn.setObjectName("stop_btn")
+        self.stop_btn.setEnabled(False)
+        self.stop_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #3e3e3e;
+                padding: 6px 16px;
+                font-size: 11px;
+                border-radius: 6px;
+                color: #888;
+            }
+            QPushButton:enabled {
+                background-color: #f43f5e;
+                color: white;
+            }
+        """)
+        self.stop_btn.clicked.connect(self.stop_generation)
+        sl.addWidget(self.stop_btn)
+
         sl.addStretch()
         il.addLayout(sl)
 
@@ -659,6 +712,17 @@ class MainWindow(QMainWindow):
 
         if not self.last_project or not os.path.exists(self.last_project):
             self.load_project(os.getcwd())
+
+    def add_chat_bubble(self, text, role="assistant"):
+        """Помічник для додавання нової бульбашки в чат"""
+        bubble = ChatBubble(text, role)
+        self.chat_layout.insertWidget(self.chat_layout.count() - 1, bubble)
+        
+        # Автоматична прокрутка вниз
+        QTimer.singleShot(50, lambda: self.chat_scroll.verticalScrollBar().setValue(
+            self.chat_scroll.verticalScrollBar().maximum()
+        ))
+        return bubble
 
     def _get_resource_path(self, filename):
         """Get path to resource file (works in dev and PyInstaller)"""
@@ -760,9 +824,7 @@ class MainWindow(QMainWindow):
         QMessageBox.critical(self, "Помилка", msg)
 
     def load_model(self, model):
-        self.chat.append(
-            f"<div style='color: #0078d4; font-style: italic; padding: 8px;'>⏳ Завантаження {model['name']} в пам'ять...</div>"
-        )
+        self.add_chat_bubble(f"⏳ Завантаження {model['name']} в пам'ять...", "system")
         self.model_status.setText("⏳ Завантаження...")
         self.model_status.setStyleSheet("color: #0078d4; font-weight: bold;")
 
@@ -784,20 +846,16 @@ class MainWindow(QMainWindow):
 
                 self.current_model = model["name"]
                 self.model_status.setText(f"✅ {model['name']}")
-                self.model_status.setStyleSheet("color: #4ec9b0; font-weight: bold;")
-                self.chat.append(
-                    "<div style='background: #1e3a2a; padding: 10px; border-radius: 8px; margin: 4px 0;'><span style='color: #4ec9b0;'>✓ Модель готова!</span></div>"
-                )
+                self.model_status.setStyleSheet("color: #10b981; font-weight: bold;")
+                self.add_chat_bubble("✓ Модель готова!", "assistant")
             except Exception as e:
                 import traceback
 
                 print(f"Error: {e}")
                 print(traceback.format_exc())
                 self.model_status.setText("⚠️ Помилка")
-                self.model_status.setStyleSheet("color: #f44747; font-weight: bold;")
-                self.chat.append(
-                    f"<div style='color: #f44747; padding: 8px;'>✗ {e}</div>"
-                )
+                self.model_status.setStyleSheet("color: #f43f5e; font-weight: bold;")
+                self.add_chat_bubble(f"✗ Помилка: {e}", "system")
 
         threading.Thread(target=load, daemon=True).start()
 
@@ -812,9 +870,7 @@ class MainWindow(QMainWindow):
 
         if reply == QMessageBox.Yes:
             if self.model_manager.delete_model(model["name"]):
-                self.chat.append(
-                    f"<div style='background: #3a2a1a; padding: 10px; border-radius: 8px; margin: 4px 0;'><span style='color: #f44747;'>✓ Видалено: {model['name']}</span></div>"
-                )
+                self.add_chat_bubble(f"✓ Видалено: {model['name']}", "system")
                 self.refresh_models()
                 if self.current_model == model["name"]:
                     self.inference.unload()
@@ -835,13 +891,9 @@ class MainWindow(QMainWindow):
                 with open(os.path.join(path, "README.md"), "w", encoding="utf-8") as f:
                     f.write(f"# Project\n\n{datetime.now()}\n")
                 self.load_project(path)
-                self.chat.append(
-                    "<div style='background: #1e3a2a; padding: 10px; border-radius: 8px; margin: 4px 0;'><span style='color: #4ec9b0;'>✓ Створено</span></div>"
-                )
+                self.add_chat_bubble("✓ Проект створено", "system")
             except Exception as e:
-                self.chat.append(
-                    f"<div style='background: #3a2020; padding: 10px; border-radius: 8px; margin: 4px 0;'><span style='color: #f44747;'>✗ Помилка: {str(e)}</span></div>"
-                )
+                self.add_chat_bubble(f"✗ Помилка створення проекту: {e}", "system")
 
     def open_project(self):
         d = QFileDialog()
@@ -858,16 +910,10 @@ class MainWindow(QMainWindow):
         save_config(cfg)
         
         # Індексація проекту
-        self.chat.append(
-            "<div style='color: #888; font-style: italic; padding: 8px;'>📖 Індексація проекту...</div>"
-        )
+        self.add_chat_bubble("📖 Індексація проекту...", "system")
         stats = self.context_engine.index_project(path)
         self.context_label.setText(f"🧠 {stats['files_indexed']}")
-        self.chat.append(
-            f"<div style='background: #1e3a2a; padding: 10px; border-radius: 8px; margin: 4px 0;'>"
-            f"<span style='color: #4ec9b0;'>✓ Проіндексовано: {stats['files_indexed']} файлів, "
-            f"{stats['chunks_added']} чанків</span></div>"
-        )
+        self.add_chat_bubble(f"✓ Проіндексовано: {stats['files_indexed']} файлів, {stats['chunks_added']} чанків", "system")
 
     def refresh_files(self):
         self.files.clear()
@@ -914,13 +960,10 @@ class MainWindow(QMainWindow):
         try:
             with open(path, "r", encoding="utf-8") as f:
                 content = f.read()
-            self.chat.append(f"""<div style='background: #1e1e1e; padding: 8px; border-radius: 8px; margin: 4px 0;'>
-                <div style='color: #0078d4; font-weight: bold; font-size: 10px;'>📄 {os.path.basename(path)}</div>
-                <pre style='color: #9cdcfe; font-size: 10px; white-space: pre-wrap;'>{content[:1500]}</pre>
-            </div>""")
+            self.add_chat_bubble(f"📄 {os.path.basename(path)}\n\n```\n{content[:1500]}\n```", "system")
             self.current_file = path
         except Exception as e:
-            self.chat.append(f"<div style='color: #f44747; padding: 8px;'>✗ {e}</div>")
+            self.add_chat_bubble(f"✗ Помилка: {e}", "system")
 
     def add_to_context(self):
         items = self.files.selectedItems()
@@ -934,11 +977,9 @@ class MainWindow(QMainWindow):
             with open(path, "r", encoding="utf-8") as f:
                 self.context_engine.add_file(path, f.read())
             self.context_label.setText(f"🧠 {len(self.context_engine.chunks)}")
-            self.chat.append(
-                "<div style='background: #1e3a2a; padding: 8px; border-radius: 8px; margin: 4px 0;'><span style='color: #4ec9b0;'>✓ Додано до контексту</span></div>"
-            )
+            self.add_chat_bubble("✓ Додано до контексту", "system")
         except Exception as e:
-            self.chat.append(f"<div style='color: #f44747; padding: 8px;'>✗ {e}</div>")
+            self.add_chat_bubble(f"✗ Помилка: {e}", "system")
 
     def open_external(self):
         if not self.editors:
@@ -1029,17 +1070,13 @@ class MainWindow(QMainWindow):
             )
             out = r.stdout or r.stderr
             if out:
-                self.chat.append(
-                    f"<div style='background: #252525; padding: 10px; border-radius: 8px; margin: 4px 0;'><pre style='color: #9cdcfe; font-size: 11px; white-space: pre-wrap;'>{out}</pre></div>"
-                )
+                self.add_chat_bubble(f"GIT Output:\n{out}", "system")
         except Exception as e:
-            self.chat.append(f"<div style='color: #f44747; padding: 8px;'>✗ {e}</div>")
+            self.add_chat_bubble(f"✗ Помилка Git: {e}", "system")
 
     def git_commit(self):
         if not self.current_model:
-            self.chat.append(
-                "<div style='background: #3a2a1a; padding: 10px; border-radius: 8px; margin: 4px 0;'><span style='color: #f44747;'>⚠️ Спочатку завантажте модель!</span></div>"
-            )
+            self.add_chat_bubble("⚠️ Спочатку завантажте модель!", "system")
             return
         r = subprocess.run(
             "git status --short",
@@ -1056,9 +1093,7 @@ class MainWindow(QMainWindow):
                 msg = self.inference.chat(self.chat_history, max_tokens=50)
                 self.git_cmd(f'git commit -m "{msg.strip().strip(chr(34) + chr(39))}"')
             except Exception as e:
-                self.chat.append(
-                    f"<div style='background: #3a2020; padding: 12px; border-radius: 8px; margin: 6px 40px 6px 0;'><span style='color: #f44747; font-size: 13px;'>✗ {e}</span></div>"
-                )
+                self.add_chat_bubble(f"✗ Помилка Commit: {e}", "system")
             self.chat_history.clear()
 
     def attach_file(self):
@@ -1157,9 +1192,7 @@ class MainWindow(QMainWindow):
         if not text and not self.attached_files:
             return
         if not self.current_model:
-            self.chat.append(
-                "<div style='background: #3a2a1a; padding: 10px; border-radius: 8px; margin: 4px 0;'><span style='color: #f44747;'>⚠️ Спочатку завантажте модель!</span></div>"
-            )
+            self.add_chat_bubble("⚠️ Спочатку завантажте модель!", "system")
             return
         if self.is_generating:
             return
@@ -1178,10 +1211,7 @@ class MainWindow(QMainWindow):
             
             # Показуємо файли в чаті
             files_display = ", ".join([os.path.basename(f) for f in self.attached_files])
-            self.chat.append(
-                f"<div style='background: #2a3a2a; padding: 8px; border-radius: 8px; margin: 4px 0;'>"
-                f"<span style='color: #4ec9b0;'>📎 Прикріплені файли: {files_display}</span></div>"
-            )
+            self.add_chat_bubble(f"📎 Прикріплено: {files_display}", "system")
             
             # Очищаємо список файлів
             self.attached_files.clear()
@@ -1216,10 +1246,7 @@ class MainWindow(QMainWindow):
                     full_context += "=== CODE CONTEXT ===\n" + ctx + "\n\n"
                 full_context += "=== TASK ===\n" + text
                 
-                self.chat.append(
-                    "<div style='background: #2a3a2a; padding: 10px; border-radius: 8px; margin: 4px 0;'>"
-                    "<span style='color: #4ec9b0;'>🔍 Аналіз проекту з " + str(len(self.context_engine.chunks)) + " чанків...</span></div>"
-                )
+                self.add_chat_bubble(f"🔍 Аналіз проекту ({len(self.context_engine.chunks)} чанків)...", "system")
                 
                 system_prompt = "Ти - досвідчений розробник ПЗ. Проаналізуй код проекту: структуру, мови, архітектуру, проблеми, рекомендації. Відповідай українською."
                 
@@ -1255,22 +1282,10 @@ class MainWindow(QMainWindow):
         is_image_request = any(p in text_lower for p in image_patterns)
 
         if is_image_request:
-            self.chat.append(
-                "<div style='background: #2a2525; padding: 14px; border-radius: 16px; margin: 8px 0; border: 1px solid #3a3535;'>"
-                "<div style='display: flex; align-items: center; gap: 10px; margin-bottom: 8px;'>"
-                "<span style='font-size: 24px;'>🖼️</span>"
-                "<span style='color: #f48771; font-size: 14px; font-weight: 600;'>Зображення не підтримуються</span>"
-                "</div>"
-                "<div style='color: #888; font-size: 12px; line-height: 1.4;'>Локальні GGUF моделі працюють лише з текстом.<br>Картинки, фото та скріншоти не підтримуються.</div>"
-                "</div>"
-            )
+            self.add_chat_bubble("🖼️ Зображення не підтримуються локальними GGUF моделями.", "system")
             return
 
-        self.chat.append(f"""<div style='background: qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 #264f78,stop:1 #2a5a8a); 
-            padding: 12px; border-radius: 12px; margin: 6px 0 6px 40px;'>
-            <div style='color: #4ec9b0; font-size: 11px; margin-bottom: 4px;'>👤</div>
-            <div style='color: #d4d4d4; font-size: 13px;'>{text}</div>
-        </div>""")
+        self.add_chat_bubble(text, "user")
         self.chat_input.clear()
         ctx = (
             self.context_engine.get_context_for_query(text, k=5)
@@ -1314,33 +1329,37 @@ class MainWindow(QMainWindow):
         tools_to_pass = TOOL_DEFINITIONS if tools_mode else None
         self.worker = AsyncChatWorker(self.orchestrator, self.chat_history, tools=tools_to_pass)
         
-        self.chat.append("<hr><span style='color: #4ec9b0;'>🧠</span> ")
-        self.chat.moveCursor(self.chat.textCursor().End)
+        self.current_bubble = self.add_chat_bubble("", "assistant")
         self.streaming_text = ""
         
         self.worker.chunk_received.connect(self._on_chunk)
         self.worker.tool_called.connect(self._on_tool_call)
         self.worker.finished_success.connect(self._on_chat_success)
         self.worker.error.connect(self._on_chat_error)
+        self.worker.status_changed.connect(self._update_status)
+        
+        self.stop_btn.setEnabled(True)
         self.worker.start()
 
     def _on_chunk(self, chunk):
         self.typing.stop()
-        self.chat.moveCursor(self.chat.textCursor().End)
-        self.chat.insertPlainText(chunk)
-        self.chat.verticalScrollBar().setValue(self.chat.verticalScrollBar().maximum())
         self.streaming_text += chunk
+        if self.current_bubble:
+            self.current_bubble.update_text(self.streaming_text)
+        
+        # Scroll to bottom smoothly
+        self.chat_scroll.verticalScrollBar().setValue(
+            self.chat_scroll.verticalScrollBar().maximum()
+        )
 
     def _on_tool_call(self, message):
         self.chat_history.append(message)
         for call in message.get("tool_calls", []):
             name = call["function"]["name"]
-            try:
-                args = json.loads(call["function"]["arguments"])
-            except:
-                args = {}
+            args = json.loads(call["function"]["arguments"])
             
-            self.chat.append(f"<div style='color: #d6701e; margin-left: 10px;'>🛠️ Виконання інструменту: {name}</div>")
+            self._update_status(f"🛠️ Виконую {name}...")
+            self.add_chat_bubble(f"🛠️ Інструмент: {name}({json.dumps(args, ensure_ascii=False)})", "system")
             
             res = "Tool unknown"
             try:
@@ -1352,11 +1371,11 @@ class MainWindow(QMainWindow):
                     res = json.dumps(self.agent_tools.search_code(args.get("query", "")))
                 elif name == "run_command":
                     out = self.agent_tools.run_command(args.get("cmd", ""))
-                    res = f"Stdout:\\n{out['stdout']}\\nStderr:\\n{out['stderr']}"
+                    res = f"Stdout:\n{out['stdout']}\nStderr:\n{out['stderr']}"
             except Exception as e:
                 res = f"Error: {e}"
                 
-            self.chat.append(f"<div style='color: #888; margin-left: 20px;'>=> {str(res)[:100]}...</div>")
+            self.add_chat_bubble(f"✅ Результат: {str(res)[:200]}...", "system")
             
             self.chat_history.append({
                 "role": "tool",
@@ -1374,17 +1393,19 @@ class MainWindow(QMainWindow):
             self._finish_generation()
 
     def _on_chat_error(self, err):
-        self.chat.append(f"<div style='color: #f44747;'>✗ Помилка Orchestrator: {err}</div>")
+        self.add_chat_bubble(f"✗ Помилка: {err}", "system")
         self._finish_generation()
 
     def _finish_generation(self):
         self.is_generating = False
         self.typing.stop()
+        self.stop_btn.setEnabled(False)
         self.work_status.setText("Готовий")
-        self.status_icon.setStyleSheet("color: #4ec9b0; font-size: 10px;")
+        self.status_icon.setStyleSheet("color: #10b981; font-size: 10px;")
         self.work_status.parent().setStyleSheet("""
             QFrame {
-                background-color: #1e3a2a;
+                background-color: #0f1115;
+                border: 1px solid #1a1d23;
                 border-radius: 12px;
                 padding: 4px 12px;
             }
@@ -1396,36 +1417,12 @@ class MainWindow(QMainWindow):
             return
 
         if response_data.get("error"):
-            self.typing.stop()
-            self.work_status.setText("Готовий")
-            self.status_icon.setStyleSheet("color: #4ec9b0; font-size: 10px;")
-            self.work_status.parent().setStyleSheet("""
-                QFrame {
-                    background-color: #1e3a2a;
-                    border-radius: 12px;
-                    padding: 4px 12px;
-                }
-            """)
-            self.chat.append(
-                f"<div style='color: #f44747; padding: 8px;'>✗ {response_data['error']}</div>"
-            )
+            self._finish_generation()
+            self.add_chat_bubble(f"✗ {response_data['error']}", "system")
         else:
-            self.typing.stop()
-            self.work_status.setText("Готовий")
-            self.status_icon.setStyleSheet("color: #4ec9b0; font-size: 10px;")
-            self.work_status.parent().setStyleSheet("""
-                QFrame {
-                    background-color: #1e3a2a;
-                    border-radius: 12px;
-                    padding: 4px 12px;
-                }
-            """)
+            self._finish_generation()
             response = response_data.get("response", "")
-            self.chat.append(f"""<div style='background: qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 #1a3a2a,stop:1 #1e4a34); 
-                padding: 12px; border-radius: 12px; margin: 6px 40px 6px 0;'>
-                <div style='color: #4ec9b0; font-size: 11px; margin-bottom: 4px;'>🧠</div>
-                <div style='color: #d4d4d4; font-size: 13px; white-space: pre-wrap;'>{response}</div>
-            </div>""")
+            self.add_chat_bubble(response, "assistant")
 
         self.is_generating = False
 
@@ -1441,3 +1438,69 @@ class MainWindow(QMainWindow):
         e.accept()
 
 
+    def stop_generation(self):
+        if hasattr(self, "worker") and self.worker:
+            self.worker.stop()
+            self.add_chat_bubble("⚠️ Генерацію зупинено.", "system")
+            self._on_worker_finished("")
+
+    def _update_status(self, text):
+        self.work_status.setText(text)
+
+    def new_file(self, parent_dir):
+        if not parent_dir:
+            parent_dir = self.project_path
+        name, ok = QInputDialog.getText(self, "Новий файл", "Назва файлу:")
+        if ok and name:
+            try:
+                path = os.path.join(parent_dir, name)
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write("")
+                self.refresh_files()
+            except Exception as e:
+                QMessageBox.critical(self, "Помилка", str(e))
+
+    def new_folder(self, parent_dir):
+        if not parent_dir:
+            parent_dir = self.project_path
+        name, ok = QInputDialog.getText(self, "Нова папка", "Назва папки:")
+        if ok and name:
+            try:
+                os.makedirs(os.path.join(parent_dir, name), exist_ok=True)
+                self.refresh_files()
+            except Exception as e:
+                QMessageBox.critical(self, "Помилка", str(e))
+
+    def delete_item(self, path):
+        reply = QMessageBox.question(self, "Видалити", f"Ви впевнені, що хочете видалити {os.path.basename(path)}?",
+                                     QMessageBox.Yes | QMessageBox.No)
+        if reply == QMessageBox.Yes:
+            try:
+                import shutil
+                if os.path.isdir(path):
+                    shutil.rmtree(path)
+                else:
+                    os.remove(path)
+                self.refresh_files()
+            except Exception as e:
+                QMessageBox.critical(self, "Помилка", str(e))
+
+    def rename_item(self, path):
+        old_name = os.path.basename(path)
+        new_name, ok = QInputDialog.getText(self, "Перейменувати", "Нова назва:", text=old_name)
+        if ok and new_name and new_name != old_name:
+            try:
+                new_path = os.path.join(os.path.dirname(path), new_name)
+                os.rename(path, new_path)
+                self.refresh_files()
+            except Exception as e:
+                QMessageBox.critical(self, "Помилка", str(e))
+
+    def open_file_path(self, path):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                content = f.read()
+            self.add_chat_bubble(f"📄 {os.path.basename(path)}\n\n```\n{content[:1500]}\n```", "system")
+            self.current_file = path
+        except Exception as e:
+            self.add_chat_bubble(f"✗ Помилка: {e}", "system")

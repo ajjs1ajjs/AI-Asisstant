@@ -1,4 +1,4 @@
-# 🚀 AI Coding IDE - Ultra Compact Version
+# 🚀 AI Coding IDE - Premium UI Components
 
 import json
 import os
@@ -8,9 +8,8 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
-from dotenv import load_dotenv
-from PySide6.QtCore import Qt, QTimer, QMimeData, QThread, Signal
-from PySide6.QtGui import QColor, QDrag, QPainter, QPixmap, QKeySequence, QIcon
+from PySide6.QtCore import Qt, QTimer, QMimeData, QThread, Signal, QSize
+from PySide6.QtGui import QColor, QDrag, QPainter, QPixmap, QKeySequence, QIcon, QFont, QCursor
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -34,61 +33,146 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from context_engine import ContextEngine
-from local_engine import LocalInference, get_inference
-from model_manager import LocalModelManager
-from settings_dialog import SettingsDialog
-from settings import get_settings
-from orchestrator import ModelOrchestrator, Model, GroqProvider, OpenRouterProvider, DeepSeekProvider, QwenProvider
-from agent_tools import AgentTools, TOOL_DEFINITIONS
-import asyncio
+class ChatBubble(QFrame):
+    """
+    Premium Chat Bubble with modern aesthetics.
+    """
+    def __init__(self, text, role="assistant", parent=None):
+        super().__init__(parent)
+        self.role = role
+        self.text = text
+        self.setup_ui()
 
-CONFIG_FILE = Path.home() / ".ai-ide" / "config.json"
+    def setup_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 12, 16, 12)
+        layout.setSpacing(4)
+
+        # Bubble Container
+        self.bubble = QFrame()
+        self.bubble_layout = QVBoxLayout(self.bubble)
+        self.bubble_layout.setContentsMargins(14, 10, 14, 10)
+        self.bubble_layout.setSpacing(6)
+
+        # Header (Icon + Name)
+        header = QHBoxLayout()
+        header.setSpacing(8)
+        
+        icon = QLabel()
+        icon.setFixedSize(20, 20)
+        
+        name = QLabel()
+        name.setStyleSheet("font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;")
+
+        if self.role == "user":
+            icon.setText("👤")
+            name.setText("You")
+            name.setStyleSheet(name.styleSheet() + "color: #3b82f6;")
+            self.bubble.setStyleSheet("""
+                QFrame {
+                    background-color: #1a1d23;
+                    border: 1px solid #2d3139;
+                    border-radius: 16px;
+                    border-top-right-radius: 4px;
+                }
+            """)
+            layout.setAlignment(Qt.AlignRight)
+            header.addStretch()
+            header.addWidget(name)
+            header.addWidget(icon)
+        else:
+            icon.setText("🧠")
+            name.setText("AI Assistant")
+            name.setStyleSheet(name.styleSheet() + "color: #10b981;")
+            self.bubble.setStyleSheet("""
+                QFrame {
+                    background-color: #0f1115;
+                    border: 1px solid #1a1d23;
+                    border-radius: 16px;
+                    border-top-left-radius: 4px;
+                }
+            """)
+            layout.setAlignment(Qt.AlignLeft)
+            header.addWidget(icon)
+            header.addWidget(name)
+            header.addStretch()
+
+        self.bubble_layout.addLayout(header)
+
+        # Message Content
+        self.content = QLabel(self.text)
+        self.content.setWordWrap(True)
+        self.content.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.content.setStyleSheet("""
+            QLabel {
+                color: #f1f5f9;
+                font-size: 13px;
+                line-height: 1.5;
+                background: transparent;
+                border: none;
+            }
+        """)
+        self.bubble_layout.addWidget(self.content)
+
+        layout.addWidget(self.bubble)
+        
+        # Max width constraint (approx 80% of chat width)
+        self.setMinimumWidth(100)
+        self.bubble.setMaximumWidth(800)
+
+    def update_text(self, text):
+        self.text = text
+        self.content.setText(text)
+
 class DownloadDialog(QDialog):
     def __init__(self, model, parent=None):
         super().__init__(parent)
         self.setWindowTitle(f"Завантаження {model['name']}")
         self.setModal(True)
-        self.setFixedSize(350, 120)
-        self.setStyleSheet("background-color: #1e1e1e; color: #d4d4d4;")
+        self.setFixedSize(380, 140)
+        self.setStyleSheet("background-color: #0f1115; color: #f1f5f9; border: 1px solid #2d3139; border-radius: 12px;")
 
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(12)
 
         self.label = QLabel(f"Завантаження {model['name']} ({model['size_gb']} GB)...")
-        self.label.setStyleSheet("color: #d4d4d4; font-size: 12px;")
+        self.label.setStyleSheet("color: #94a3b8; font-size: 12px; font-weight: 500;")
         layout.addWidget(self.label)
 
         self.progress = QProgressBar()
         self.progress.setRange(0, 100)
         self.progress.setValue(0)
+        self.progress.setTextVisible(False)
         self.progress.setStyleSheet("""
             QProgressBar {
-                background-color: #2a2a2e;
-                border-radius: 8px;
-                height: 20px;
-                text-align: center;
-                color: #fff;
+                background-color: #1a1d23;
+                border: 1px solid #2d3139;
+                border-radius: 4px;
+                height: 8px;
             }
             QProgressBar::chunk {
-                background-color: #0078d4;
-                border-radius: 8px;
+                background-color: #3b82f6;
+                border-radius: 4px;
             }
         """)
         layout.addWidget(self.progress)
 
         self.cancel_btn = QPushButton("Скасувати")
+        self.cancel_btn.setFixedWidth(100)
         self.cancel_btn.setStyleSheet("""
             QPushButton {
-                background-color: #3a3a3e;
-                border: none;
-                padding: 6px 16px;
-                border-radius: 4px;
-                color: #d4d4d4;
+                background-color: #1a1d23;
+                border: 1px solid #2d3139;
+                padding: 6px;
+                border-radius: 6px;
+                color: #94a3b8;
+                font-size: 11px;
             }
-            QPushButton:hover { background-color: #4a4a4e; }
+            QPushButton:hover { background-color: #2d3139; color: #f1f5f9; }
         """)
-        self.cancel_btn.clicked.connect(self.close)
-        layout.addWidget(self.cancel_btn)
+        self.cancel_btn.clicked.connect(self.reject)
+        layout.addWidget(self.cancel_btn, 0, Qt.AlignRight)
 
     def update_progress(self, percent):
         self.progress.setValue(int(percent))
@@ -101,182 +185,256 @@ class ModelCard(QFrame):
         self.on_load = on_load
         self.on_delete = on_delete
         self.on_download = on_download
-        self.setFixedHeight(65)
+        self.setFixedHeight(75)
+        self.setObjectName("model_card")
         self.setStyleSheet("""
             QFrame {
-                background-color: #2a2a2e;
-                border-radius: 8px;
-                margin: 2px 4px;
+                background-color: #0f1115;
+                border: 1px solid #1a1d23;
+                border-radius: 12px;
+                margin: 4px 8px;
             }
             QFrame:hover {
-                background-color: #3a3a3e;
+                background-color: #1a1d23;
+                border: 1.5px solid #2d3139;
             }
         """)
         self.setup_ui()
 
     def setup_ui(self):
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(10, 6, 10, 6)
+        layout.setContentsMargins(14, 10, 14, 10)
         layout.setSpacing(12)
 
-        # Status dot
-        if self.model["is_downloaded"]:
-            dot = QLabel("●")
-            dot.setStyleSheet("color: #4ec9b0; font-size: 14px;")
-            layout.addWidget(dot)
-        else:
-            dot = QLabel("○")
-            dot.setStyleSheet("color: #666; font-size: 14px;")
-            layout.addWidget(dot)
+        # Status indicator
+        status_dot = QFrame()
+        status_dot.setFixedSize(10, 10)
+        status_dot.setStyleSheet(f"""
+            QFrame {{
+                background-color: {'#10b981' if self.model['is_downloaded'] else '#2d3139'};
+                border-radius: 5px;
+            }}
+        """)
+        layout.addWidget(status_dot)
 
-        # Info
+        # Info column
         info = QVBoxLayout()
-        info.setSpacing(1)
+        info.setSpacing(2)
 
-        # Name
-        name_text = self.model["name"]
-        if len(name_text) > 22:
-            name_text = name_text[:22] + "..."
-
-        name = QLabel(name_text)
-        name.setStyleSheet("color: #e8e8e8; font-weight: 600; font-size: 11px;")
+        name = QLabel(self.model["name"][:25] + ("..." if len(self.model["name"]) > 25 else ""))
+        name.setStyleSheet("color: #f1f5f9; font-weight: 600; font-size: 11px;")
         name.setToolTip(self.model["name"])
         info.addWidget(name)
 
-        # Size
-        size = QLabel(
-            f"{self.model['size_gb']} GB • {self.model['ram_required_gb']}G RAM"
-        )
-        size.setStyleSheet("color: #777; font-size: 9px;")
-        info.addWidget(size)
-
-        info.addStretch()
+        meta = QLabel(f"{self.model['size_gb']} GB • {self.model['ram_required_gb']}G RAM")
+        meta.setStyleSheet("color: #64748b; font-size: 10px; font-weight: 500;")
+        info.addWidget(meta)
         layout.addLayout(info)
+        
         layout.addStretch()
 
-        # Buttons
+        # Action Button Container
+        actions = QHBoxLayout()
+        actions.setSpacing(6)
+
         if self.model["is_downloaded"]:
-            load_btn = QPushButton("▶")
-            load_btn.setFixedSize(28, 28)
-            load_btn.setStyleSheet("""
+            run_btn = QPushButton("▶")
+            run_btn.setFixedSize(30, 30)
+            run_btn.setCursor(QCursor(Qt.PointingHandCursor))
+            run_btn.setStyleSheet("""
                 QPushButton {
-                    background-color: #0e639c;
+                    background-color: #3b82f6;
                     color: white;
-                    border-radius: 14px;
+                    border-radius: 15px;
                     font-size: 12px;
                 }
-                QPushButton:hover { background-color: #1177bb; }
+                QPushButton:hover { background-color: #2563eb; }
             """)
-            load_btn.clicked.connect(lambda checked, m=self.model: self.on_load(m))
-            load_btn.setToolTip("Завантажити")
-            layout.addWidget(load_btn)
+            run_btn.clicked.connect(lambda: self.on_load(self.model))
+            actions.addWidget(run_btn)
 
             del_btn = QPushButton("🗑")
-            del_btn.setFixedSize(28, 28)
+            del_btn.setFixedSize(30, 30)
+            del_btn.setCursor(QCursor(Qt.PointingHandCursor))
             del_btn.setStyleSheet("""
                 QPushButton {
-                    background-color: #4a2525;
-                    color: #f44747;
-                    border-radius: 14px;
+                    background-color: #1a1d23;
+                    color: #94a3b8;
+                    border: 1px solid #2d3139;
+                    border-radius: 15px;
                     font-size: 11px;
                 }
-                QPushButton:hover { background-color: #6a3535; }
+                QPushButton:hover { background-color: #4a2525; color: #f43f5e; border: 1px solid #f43f5e; }
             """)
-            del_btn.clicked.connect(lambda checked, m=self.model: self.on_delete(m))
-            del_btn.setToolTip("Видалити")
-            layout.addWidget(del_btn)
+            del_btn.clicked.connect(lambda: self.on_delete(self.model))
+            actions.addWidget(del_btn)
         else:
             if self.model.get("is_compatible", True):
                 dl_btn = QPushButton("⬇")
-                dl_btn.setFixedSize(28, 28)
+                dl_btn.setFixedSize(30, 30)
+                dl_btn.setCursor(QCursor(Qt.PointingHandCursor))
                 dl_btn.setStyleSheet("""
                     QPushButton {
-                        background-color: #d6701e;
-                        color: white;
-                        border-radius: 14px;
+                        background-color: #1a1d23;
+                        color: #3b82f6;
+                        border: 1px solid #3b82f6;
+                        border-radius: 15px;
                         font-size: 12px;
                     }
-                    QPushButton:hover { background-color: #e6802e; }
+                    QPushButton:hover { background-color: #3b82f6; color: white; }
                 """)
-                dl_btn.clicked.connect(
-                    lambda checked, m=self.model: self.on_download(m)
-                )
-                dl_btn.setToolTip("Завантажити")
-                layout.addWidget(dl_btn)
+                dl_btn.clicked.connect(lambda: self.on_download(self.model))
+                actions.addWidget(dl_btn)
             else:
-                no = QLabel("⚠️")
-                no.setStyleSheet("color: #f44747; font-size: 12px;")
-                no.setToolTip(f"Потрібно {self.model['ram_required_gb']}G RAM")
-                layout.addWidget(no)
+                layout.addWidget(QLabel("⚠️"))
+
+        layout.addLayout(actions)
 
 
 class FileTree(QTreeWidget):
     def __init__(self):
         super().__init__()
-        self.setHeaderLabels(["Name"])
+        self.setHeaderLabels(["Файли"])
+        self.setIndentation(12)
+        self.setAnimated(True)
+        self.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.customContextMenuRequested.connect(self.show_context_menu)
+        self.itemDoubleClicked.connect(self.item_double_clicked)
+        self.setAcceptDrops(True)
+        self.setDragEnabled(True)
+        self.setDropIndicatorShown(True)
+        self.setDragDropMode(QTreeWidget.InternalMove)
         self.setStyleSheet("""
             QTreeWidget {
-                background-color: #1e1e1e;
-                border: none;
-                outline: none;
+                background-color: #0f1115;
+                border: 1px solid #1a1d23;
+                border-radius: 10px;
+                padding: 6px;
+                color: #94a3b8;
+                font-size: 11px;
             }
-            QTreeWidget::item { padding: 4px; border-radius: 4px; }
-            QTreeWidget::item:selected { background-color: #37373d; }
+            QTreeWidget::item { padding: 4px 6px; border-radius: 4px; }
+            QTreeWidget::item:hover { background-color: #1a1d23; color: #f1f5f9; }
+            QTreeWidget::item:selected { background-color: #3b82f6; color: white; }
         """)
+        self.setColumnWidth(0, 200)
+
+    # Signals
+    file_open_requested = Signal(str)
+    add_to_chat_requested = Signal(str)
+    new_file_requested = Signal(str)
+    new_folder_requested = Signal(str)
+    refresh_requested = Signal()
+    delete_requested = Signal(str)
+    rename_requested = Signal(str)
+
+    def show_context_menu(self, position):
+        item = self.itemAt(position)
+        menu = QMenu()
+        menu.setStyleSheet("""
+            QMenu { background-color: #1a1d23; color: #f1f5f9; border: 1px solid #2d3139; border-radius: 6px; padding: 4px; }
+            QMenu::item { padding: 6px 20px; border-radius: 4px; }
+            QMenu::item:selected { background-color: #3b82f6; }
+        """)
+
+        if item:
+            path = item.data(0, Qt.UserRole)
+            if path:
+                if os.path.isfile(path):
+                    menu.addAction("💬 Додати до чату", lambda: self.add_to_chat_requested.emit(path))
+                    menu.addSeparator()
+                
+                menu.addAction("📂 Відкрити", lambda: self.file_open_requested.emit(path))
+                menu.addAction("✏️ Перейменувати", lambda: self.rename_requested.emit(path))
+                menu.addAction("🗑️ Видалити", lambda: self.delete_requested.emit(path))
+                menu.addSeparator()
+
+        menu.addAction("🔄 Оновити", lambda: self.refresh_requested.emit())
+        menu.addSeparator()
+        
+        create_menu = menu.addMenu("➕ Створити")
+        create_menu.setStyleSheet(menu.styleSheet())
+        create_menu.addAction("📄 Новий файл", lambda: self.new_file_requested.emit(self._get_current_dir(item)))
+        create_menu.addAction("📁 Нова папка", lambda: self.new_folder_requested.emit(self._get_current_dir(item)))
+
+        menu.exec_(self.viewport().mapToGlobal(position))
+
+    def _get_current_dir(self, item):
+        if not item:
+            return "" # Use project root
+        path = item.data(0, Qt.UserRole)
+        if path and os.path.isdir(path):
+            return path
+        elif path:
+            return os.path.dirname(path)
+        return ""
+
+    def item_double_clicked(self, item, column):
+        path = item.data(0, Qt.UserRole)
+        if path and os.path.isfile(path):
+            self.file_open_requested.emit(path)
+
+    def dropEvent(self, event):
+        super().dropEvent(event)
+        self.refresh_requested.emit()
 
 
 class TypingIndicator(QFrame):
-    def __init__(self):
-        super().__init__()
-        self.setFixedHeight(36)
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedHeight(40)
         self.setStyleSheet("QFrame { background-color: transparent; }")
-        self.dots = []
         self.setup_ui()
-        self.timer = QTimer()
+        self.timer = QTimer(self)
         self.timer.timeout.connect(self.animate)
-        self.current_dot = 0
+        self.dot_index = 0
 
     def setup_ui(self):
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(12, 4, 12, 4)
-        layout.setSpacing(8)
+        layout.setContentsMargins(16, 0, 16, 0)
+        layout.setSpacing(10)
 
-        icon = QLabel("⏳")
+        self.bubble = QFrame()
+        self.bubble.setStyleSheet("""
+            QFrame {
+                background-color: #0f1115;
+                border: 1px solid #1a1d23;
+                border-radius: 15px;
+                border-top-left-radius: 4px;
+                padding: 4px 12px;
+            }
+        """)
+        bl = QHBoxLayout(self.bubble)
+        bl.setSpacing(4)
+
+        icon = QLabel("🧠")
         icon.setStyleSheet("font-size: 14px;")
-        layout.addWidget(icon)
+        bl.addWidget(icon)
 
-        self.label = QLabel("Думає...")
-        self.label.setStyleSheet("color: #0078d4; font-size: 12px; font-style: italic;")
-        layout.addWidget(self.label)
+        self.label = QLabel("Думає")
+        self.label.setStyleSheet("color: #10b981; font-size: 11px; font-weight: 600; text-transform: uppercase;")
+        bl.addWidget(self.label)
 
-        dots = QHBoxLayout()
-        dots.setSpacing(3)
-        for i in range(3):
+        self.dots = []
+        for _ in range(3):
             dot = QLabel("•")
-            dot.setStyleSheet("color: #3e3e3e; font-size: 16px;")
-            dots.addWidget(dot)
+            dot.setStyleSheet("color: #3b82f6; font-size: 20px;")
+            bl.addWidget(dot)
             self.dots.append(dot)
-        layout.addLayout(dots)
+            
+        layout.addWidget(self.bubble)
         layout.addStretch()
 
     def start(self):
         self.show()
         self.timer.start(400)
-        self.animate()
 
     def stop(self):
         self.timer.stop()
         self.hide()
-        for dot in self.dots:
-            dot.setStyleSheet("color: #3e3e3e; font-size: 16px;")
 
     def animate(self):
+        self.dot_index = (self.dot_index + 1) % 4
         for i, dot in enumerate(self.dots):
-            dot.setStyleSheet(
-                "color: #3e3e3e; font-size: 16px;"
-                if i != self.current_dot
-                else "color: #0078d4; font-size: 16px;"
-            )
-        self.current_dot = (self.current_dot + 1) % 3
-
-
+            dot.setOpacity(1.0 if i < self.dot_index else 0.2) # Use style for fake opacity
+            dot.setStyleSheet(f"color: {'#3b82f6' if i < self.dot_index else '#2d3139'}; font-size: 20px;")

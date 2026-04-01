@@ -52,7 +52,7 @@ class GroqProvider(BaseProvider):
         ]
 
     async def chat(self, model: str, messages: list, tools: list = None):
-        payload = {"model": model, "messages": messages, "max_tokens": 2048}
+        payload = {"model": model, "messages": messages, "max_tokens": 4096}
         if tools:
             payload["tools"] = tools
             payload["tool_choice"] = "auto"
@@ -71,7 +71,7 @@ class GroqProvider(BaseProvider):
         payload = {
             "model": model,
             "messages": messages,
-            "max_tokens": 2048,
+            "max_tokens": 4096,
             "stream": True,
         }
         if tools:
@@ -156,7 +156,7 @@ class QwenProvider(BaseProvider):
 
     async def chat(self, model: str, messages: list, tools: list = None):
         if self.provider_type == "together":
-            payload = {"model": model, "messages": messages, "max_tokens": 2048}
+            payload = {"model": model, "messages": messages, "max_tokens": 4096}
             if tools:
                 payload["tools"] = tools
 
@@ -180,7 +180,7 @@ class QwenProvider(BaseProvider):
                 response = await client.post(
                     url,
                     headers=headers,
-                    json={"model": model, "messages": messages, "max_tokens": 2048},
+                    json={"model": model, "messages": messages, "max_tokens": 4096},
                 )
                 if response.status_code == 200:
                     return response.json()
@@ -267,7 +267,7 @@ class SiliconFlowProvider(BaseProvider):
         self.models = ["Qwen/Qwen2.5-Coder-32B-Instruct", "Qwen/Qwen2.5-72B-Instruct"]
 
     async def chat(self, model: str, messages: list, tools: list = None):
-        payload = {"model": model, "messages": messages, "max_tokens": 2048}
+        payload = {"model": model, "messages": messages, "max_tokens": 4096}
 
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
