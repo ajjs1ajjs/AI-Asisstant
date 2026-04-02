@@ -14,15 +14,24 @@ class LocalInference:
     def load_model(self, model_path, n_ctx=8192):
         try:
             from llama_cpp import Llama
-            for n in ["llama_cpp", "llamacpp", "llama"]: 
+            for n in ["llama_cpp", "llamacpp", "llama"]:
                 logging.getLogger(n).setLevel(logging.CRITICAL)
             os.environ["GGML_LOG_LEVEL"] = "0"
             os.environ["LLAMA_LOG_LEVEL"] = "0"
+            
+            print(f"[LocalEngine] Loading model from: {model_path}")
+            print(f"[LocalEngine] File exists: {os.path.exists(model_path)}")
+            print(f"[LocalEngine] File size: {os.path.getsize(model_path) / (1024**2):.0f}MB")
+            
             self.model = Llama(model_path=model_path, n_ctx=n_ctx, verbose=False)
+            self.current_model_path = model_path
             self.is_loaded = True
+            print(f"[LocalEngine] Model loaded successfully! is_loaded={self.is_loaded}")
             return True
         except Exception as e:
-            print(f"Error: {e}")
+            print(f"[LocalEngine] Error loading model: {e}")
+            import traceback
+            traceback.print_exc()
             self.is_loaded = False
             raise
 

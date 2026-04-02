@@ -9,7 +9,16 @@ from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QTimer, QMimeData, QThread, Signal, QSize
-from PySide6.QtGui import QColor, QDrag, QPainter, QPixmap, QKeySequence, QIcon, QFont, QCursor
+from PySide6.QtGui import (
+    QColor,
+    QDrag,
+    QPainter,
+    QPixmap,
+    QKeySequence,
+    QIcon,
+    QFont,
+    QCursor,
+)
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -33,10 +42,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+
 class ChatBubble(QFrame):
     """
     Premium Chat Bubble with modern aesthetics.
     """
+
     def __init__(self, text, role="assistant", parent=None):
         super().__init__(parent)
         self.role = role
@@ -57,12 +68,14 @@ class ChatBubble(QFrame):
         # Header (Icon + Name)
         header = QHBoxLayout()
         header.setSpacing(8)
-        
+
         icon = QLabel()
         icon.setFixedSize(20, 20)
-        
+
         name = QLabel()
-        name.setStyleSheet("font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;")
+        name.setStyleSheet(
+            "font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;"
+        )
 
         if self.role == "user":
             icon.setText("👤")
@@ -116,7 +129,7 @@ class ChatBubble(QFrame):
         self.bubble_layout.addWidget(self.content)
 
         layout.addWidget(self.bubble)
-        
+
         # Max width constraint (approx 80% of chat width)
         self.setMinimumWidth(100)
         self.bubble.setMaximumWidth(800)
@@ -125,10 +138,12 @@ class ChatBubble(QFrame):
         self.text = text
         self.content.setText(text)
 
+
 class ThoughtBubble(QFrame):
     """
     Subtle Bubble for AI Reasoning/Thoughts.
     """
+
     def __init__(self, text="", parent=None):
         super().__init__(parent)
         self.text = text
@@ -136,23 +151,23 @@ class ThoughtBubble(QFrame):
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(32, 4, 16, 4) # More indent from left
+        layout.setContentsMargins(32, 4, 16, 4)  # More indent from left
         layout.setSpacing(0)
 
         self.bubble = QFrame()
         self.bubble_layout = QVBoxLayout(self.bubble)
         self.bubble_layout.setContentsMargins(12, 8, 12, 8)
         self.bubble_layout.setSpacing(4)
-        
+
         # Header
         header_widget = QWidget()
         header_layout = QHBoxLayout(header_widget)
         header_layout.setContentsMargins(0, 0, 0, 0)
         header_layout.setSpacing(8)
-        
+
         icon = QLabel("🧠")
         icon.setStyleSheet("font-size: 14px;")
-        
+
         status = QLabel("ХІД ДУМОК (REASONING)")
         status.setStyleSheet("""
             color: #6366f1; 
@@ -161,7 +176,7 @@ class ThoughtBubble(QFrame):
             letter-spacing: 1px;
             text-transform: uppercase;
         """)
-        
+
         header_layout.addWidget(icon)
         header_layout.addWidget(status)
         header_layout.addStretch()
@@ -189,7 +204,7 @@ class ThoughtBubble(QFrame):
             }
         """)
         self.bubble_layout.addWidget(self.content)
-        
+
         layout.addWidget(self.bubble)
         self.bubble.setMaximumWidth(700)
 
@@ -204,7 +219,9 @@ class DownloadDialog(QDialog):
         self.setWindowTitle(f"Завантаження {model['name']}")
         self.setModal(True)
         self.setFixedSize(380, 140)
-        self.setStyleSheet("background-color: #0f1115; color: #f1f5f9; border: 1px solid #2d3139; border-radius: 12px;")
+        self.setStyleSheet(
+            "background-color: #0f1115; color: #f1f5f9; border: 1px solid #2d3139; border-radius: 12px;"
+        )
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)
@@ -285,7 +302,7 @@ class ModelCard(QFrame):
         status_dot.setFixedSize(10, 10)
         status_dot.setStyleSheet(f"""
             QFrame {{
-                background-color: {'#10b981' if self.model['is_downloaded'] else '#2d3139'};
+                background-color: {"#10b981" if self.model["is_downloaded"] else "#2d3139"};
                 border-radius: 5px;
             }}
         """)
@@ -295,16 +312,34 @@ class ModelCard(QFrame):
         info = QVBoxLayout()
         info.setSpacing(2)
 
-        name = QLabel(self.model["name"][:25] + ("..." if len(self.model["name"]) > 25 else ""))
+        name = QLabel(
+            self.model["name"][:25] + ("..." if len(self.model["name"]) > 25 else "")
+        )
         name.setStyleSheet("color: #f1f5f9; font-weight: 600; font-size: 11px;")
         name.setToolTip(self.model["name"])
         info.addWidget(name)
 
-        meta = QLabel(f"{self.model['size_gb']} GB • {self.model['ram_required_gb']}G RAM")
+        meta = QLabel(
+            f"{self.model['size_gb']} GB • {self.model['ram_required_gb']}G RAM"
+        )
         meta.setStyleSheet("color: #64748b; font-size: 10px; font-weight: 500;")
         info.addWidget(meta)
+
+        # RAM warning indicator (dot instead of text to save space)
+        if self.model.get("reason"):
+            warning_dot = QFrame()
+            warning_dot.setFixedSize(8, 8)
+            warning_dot.setStyleSheet(f"""
+                QFrame {{
+                    background-color: #eab308;
+                    border-radius: 4px;
+                }}
+            """)
+            warning_dot.setToolTip(self.model["reason"])
+            info.addWidget(warning_dot)
+
         layout.addLayout(info)
-        
+
         layout.addStretch()
 
         # Action Button Container
@@ -343,10 +378,25 @@ class ModelCard(QFrame):
             del_btn.clicked.connect(lambda: self.on_delete(self.model))
             actions.addWidget(del_btn)
         else:
-            if self.model.get("is_compatible", True):
-                dl_btn = QPushButton("⬇")
-                dl_btn.setFixedSize(30, 30)
-                dl_btn.setCursor(QCursor(Qt.PointingHandCursor))
+            # Завжди показуємо кнопку завантаження, навіть з попередженням про RAM
+            dl_btn = QPushButton("⬇")
+            dl_btn.setFixedSize(30, 30)
+            dl_btn.setCursor(QCursor(Qt.PointingHandCursor))
+
+            # Якщо є попередження про RAM, показуємо жовту кнопку
+            if self.model.get("reason"):
+                dl_btn.setStyleSheet("""
+                    QPushButton {
+                        background-color: #1a1d23;
+                        color: #eab308;
+                        border: 1px solid #eab308;
+                        border-radius: 15px;
+                        font-size: 12px;
+                    }
+                    QPushButton:hover { background-color: #eab308; color: black; }
+                """)
+                dl_btn.setToolTip(self.model["reason"])
+            else:
                 dl_btn.setStyleSheet("""
                     QPushButton {
                         background-color: #1a1d23;
@@ -357,10 +407,9 @@ class ModelCard(QFrame):
                     }
                     QPushButton:hover { background-color: #3b82f6; color: white; }
                 """)
-                dl_btn.clicked.connect(lambda: self.on_download(self.model))
-                actions.addWidget(dl_btn)
-            else:
-                layout.addWidget(QLabel("⚠️"))
+
+            dl_btn.clicked.connect(lambda: self.on_download(self.model))
+            actions.addWidget(dl_btn)
 
         layout.addLayout(actions)
 
@@ -415,27 +464,40 @@ class FileTree(QTreeWidget):
             path = item.data(0, Qt.UserRole)
             if path:
                 if os.path.isfile(path):
-                    menu.addAction("💬 Додати до чату", lambda: self.add_to_chat_requested.emit(path))
+                    menu.addAction(
+                        "💬 Додати до чату",
+                        lambda: self.add_to_chat_requested.emit(path),
+                    )
                     menu.addSeparator()
-                
-                menu.addAction("📂 Відкрити", lambda: self.file_open_requested.emit(path))
-                menu.addAction("✏️ Перейменувати", lambda: self.rename_requested.emit(path))
+
+                menu.addAction(
+                    "📂 Відкрити", lambda: self.file_open_requested.emit(path)
+                )
+                menu.addAction(
+                    "✏️ Перейменувати", lambda: self.rename_requested.emit(path)
+                )
                 menu.addAction("🗑️ Видалити", lambda: self.delete_requested.emit(path))
                 menu.addSeparator()
 
         menu.addAction("🔄 Оновити", lambda: self.refresh_requested.emit())
         menu.addSeparator()
-        
+
         create_menu = menu.addMenu("➕ Створити")
         create_menu.setStyleSheet(menu.styleSheet())
-        create_menu.addAction("📄 Новий файл", lambda: self.new_file_requested.emit(self._get_current_dir(item)))
-        create_menu.addAction("📁 Нова папка", lambda: self.new_folder_requested.emit(self._get_current_dir(item)))
+        create_menu.addAction(
+            "📄 Новий файл",
+            lambda: self.new_file_requested.emit(self._get_current_dir(item)),
+        )
+        create_menu.addAction(
+            "📁 Нова папка",
+            lambda: self.new_folder_requested.emit(self._get_current_dir(item)),
+        )
 
         menu.exec_(self.viewport().mapToGlobal(position))
 
     def _get_current_dir(self, item):
         if not item:
-            return "" # Use project root
+            return ""  # Use project root
         path = item.data(0, Qt.UserRole)
         if path and os.path.isdir(path):
             return path
@@ -496,7 +558,7 @@ class TypingIndicator(QFrame):
             dot.setStyleSheet("color: #818cf8; font-size: 18px;")
             bl.addWidget(dot)
             self.dots.append(dot)
-            
+
         layout.addWidget(self.bubble)
         layout.addStretch()
 
@@ -513,5 +575,7 @@ class TypingIndicator(QFrame):
         for i, dot in enumerate(self.dots):
             active = i < self.dot_index
             color = "#818cf8" if active else "#312e81"
-            scale = "font-size: 20px; font-weight: bold;" if active else "font-size: 18px;"
+            scale = (
+                "font-size: 20px; font-weight: bold;" if active else "font-size: 18px;"
+            )
             dot.setStyleSheet(f"color: {color}; {scale}")

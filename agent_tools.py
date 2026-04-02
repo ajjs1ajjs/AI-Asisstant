@@ -1,12 +1,158 @@
 import asyncio
 import os
+import re
 import subprocess
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Set
+
+DANGEROUS_COMMANDS: Set[str] = {
+    "rm -rf",
+    "rm -r",
+    "del /f",
+    "del /s",
+    "del /q",
+    "format",
+    "shutdown",
+    "restart",
+    "poweroff",
+    "mkfs",
+    "dd if=",
+    "chmod 777",
+    "chown",
+    "sudo rm",
+    "sudo dd",
+    "sudo mkfs",
+    ":(){:|:&};:",
+    "fork bomb",
+    "> /dev/sda",
+    "> /dev/hda",
+    "rmdir /s",
+    "rmdir /q",
+    "taskkill /f",
+    "kill -9",
+    "net user",
+    "passwd",
+    "wget http",
+    "curl http",
+    "powershell -enc",
+    "powershell -encodedcommand",
+    "certutil -decode",
+    "certutil -urlcache",
+}
+
+DANGEROUS_PATTERNS: List[str] = [
+    r"rm\s+-rf\s+/",
+    r"rm\s+-rf\s+\*",
+    r"del\s+/[fqs]\s+/",
+    r"format\s+[A-Z]:",
+    r">\s*/dev/[sh]da",
+    r":\(\)\{:\|:&\};:",
+    r"sudo\s+rm\s+-rf",
+    r"sudo\s+dd\s+",
+    r"powershell\s+-(enc|encodedcommand)",
+    r"certutil\s+-(decode|urlcache)",
+    r"wget\s+.*\|\s*(bash|sh)",
+    r"curl\s+.*\|\s*(bash|sh)",
+    r"mkfs\.\w+\s+/dev/",
+    r"chmod\s+777\s+/",
+    r"chown\s+-R\s+\w+:/",
+]
+
+ALLOWED_COMMANDS: Set[str] = {
+    "git",
+    "python",
+    "python3",
+    "pip",
+    "pip3",
+    "npm",
+    "npx",
+    "yarn",
+    "node",
+    "cargo",
+    "rustc",
+    "gcc",
+    "g++",
+    "make",
+    "cmake",
+    "pytest",
+    "unittest",
+    "mypy",
+    "flake8",
+    "black",
+    "ruff",
+    "echo",
+    "ls",
+    "dir",
+    "pwd",
+    "cd",
+    "cat",
+    "type",
+    "find",
+    "where",
+    "which",
+    "pip",
+    "pip3",
+    "npm",
+    "yarn",
+    "docker",
+    "docker-compose",
+    "curl",
+    "wget",
+    "zip",
+    "unzip",
+    "tar",
+    "grep",
+    "findstr",
+    "tree",
+    "du",
+    "df",
+    "java",
+    "javac",
+    "mvn",
+    "gradle",
+    "go",
+    "gofmt",
+    "dotnet",
+    "msbuild",
+}
+
+
+def is_command_safe(cmd: str) -> tuple[bool, str]:
+    if not cmd or not cmd.strip():
+        return False, "Empty command"
+
+    cmd_stripped = cmd.strip()
+    cmd_lower = cmd_stripped.lower()
+
+    for pattern in DANGEROUS_PATTERNS:
+        if re.search(pattern, cmd_lower):
+            return False, f"Blocked dangerous pattern in command"
+
+    for dangerous in DANGEROUS_COMMANDS:
+        if dangerous in cmd_lower:
+            return False, f"Blocked dangerous command: {dangerous}"
+
+    base_cmd = cmd_stripped.split()[0].lower()
+    base_cmd = os.path.basename(base_cmd)
+
+    if base_cmd in ("sh", "bash", "zsh", "cmd", "powershell", "pwsh"):
+        rest = cmd_stripped[cmd_stripped.find(base_cmd) + len(base_cmd) :].strip()
+        if rest.startswith("-c") or rest.startswith("/c"):
+            inner_cmd = rest[2:].strip().strip("'\"")
+            inner_safe, inner_reason = is_command_safe(inner_cmd)
+            if not inner_safe:
+                return False, f"Unsafe inner command: {inner_reason}"
+            return True, ""
+
+    if base_cmd not in ALLOWED_COMMANDS:
+        return False, f"Command '{base_cmd}' is not in the allowed list"
+
+    return True, ""
 
 
 class AgentTools:
-    def __init__(self, root_dir: str = None):
-        self.root_dir = root_dir or os.getcwd()
+    def __init__(self, root_dir: str = "", safe_mode: bool = True):
+        self.root_dir = root_dir if root_dir else os.getcwd()
+        self.safe_mode = safe_mode
 
     def read_file(self, path: str) -> str:
         full_path = os.path.join(self.root_dir, path)
@@ -29,7 +175,7 @@ class AgentTools:
         os.makedirs(full_path, exist_ok=True)
         return True
 
-    def search_code(self, query: str, extensions: list = None) -> list:
+    def search_code(self, query: str, extensions: Optional[list] = None) -> list:
         if extensions is None:
             extensions = [".py", ".js", ".ts", ".jsx", ".tsx"]
 
@@ -63,6 +209,16 @@ class AgentTools:
         return matches
 
     def run_command(self, cmd: str, timeout: int = 30) -> Dict[str, Any]:
+        if self.safe_mode:
+            safe, reason = is_command_safe(cmd)
+            if not safe:
+                return {
+                    "success": False,
+                    "stdout": "",
+                    "stderr": f"Command blocked for security: {reason}",
+                    "returncode": -1,
+                }
+
         try:
             result = subprocess.run(
                 cmd,
@@ -131,7 +287,9 @@ class AgentTools:
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, self.create_directory, path)
 
-    async def search_code_async(self, query: str, extensions: list = None) -> list:
+    async def search_code_async(
+        self, query: str, extensions: Optional[list] = None
+    ) -> list:
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, self.search_code, query, extensions)
 
@@ -143,9 +301,11 @@ class AgentTools:
                 stderr=asyncio.subprocess.PIPE,
                 cwd=self.root_dir,
             )
-            
+
             try:
-                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
+                stdout, stderr = await asyncio.wait_for(
+                    process.communicate(), timeout=timeout
+                )
             except asyncio.TimeoutError:
                 process.kill()
                 await process.communicate()
@@ -155,7 +315,7 @@ class AgentTools:
                     "stderr": f"Command timed out after {timeout}s",
                     "returncode": -1,
                 }
-            
+
             return {
                 "success": process.returncode == 0,
                 "stdout": stdout.decode("utf-8", errors="replace"),

@@ -1,10 +1,16 @@
 import asyncio
 import json
+import logging
+import re
 import time
 from dataclasses import dataclass
 from typing import List, Optional
 
 import httpx
+
+logger = logging.getLogger(__name__)
+
+VALID_KEY_PATTERN = re.compile(r"^[A-Za-z0-9_\-\.]{8,}$")
 
 
 @dataclass
@@ -27,6 +33,16 @@ class BaseProvider:
     def __init__(self, api_key: str = "", base_url: str = ""):
         self.api_key = api_key
         self.base_url = base_url
+        self._validated = False
+
+    def validate_key(self) -> bool:
+        if not self.api_key:
+            return False
+        if not VALID_KEY_PATTERN.match(self.api_key):
+            logger.warning("Invalid API key format for %s", self.base_url)
+            return False
+        self._validated = True
+        return True
 
     async def chat_stream(self, model: str, messages: list, tools: list = None):
         raise NotImplementedError
@@ -81,7 +97,7 @@ class GroqProvider(BaseProvider):
             headers = {
                 "Authorization": f"Bearer {self.api_key}",
                 "Accept": "text/event-stream",
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
             }
             async with client.stream(
                 "POST",
@@ -130,7 +146,7 @@ class DeepSeekProvider(BaseProvider):
             headers = {
                 "Authorization": f"Bearer {self.api_key}",
                 "Accept": "text/event-stream",
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
             }
             async with client.stream(
                 "POST",
@@ -205,7 +221,7 @@ class QwenProvider(BaseProvider):
             headers = {
                 "Authorization": f"Bearer {self.api_key}",
                 "Accept": "text/event-stream",
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
             }
             async with httpx.AsyncClient(timeout=None) as client:
                 async with client.stream(
@@ -223,7 +239,7 @@ class QwenProvider(BaseProvider):
             headers = {
                 "Authorization": f"Bearer {self.api_key}" if self.api_key else "",
                 "Accept": "text/event-stream",
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
             }
 
             async with httpx.AsyncClient(timeout=None) as client:
@@ -231,7 +247,12 @@ class QwenProvider(BaseProvider):
                     "POST",
                     url,
                     headers=headers,
-                    json={"model": model, "messages": messages, "stream": True, "max_tokens": 4096},
+                    json={
+                        "model": model,
+                        "messages": messages,
+                        "stream": True,
+                        "max_tokens": 4096,
+                    },
                 ) as r:
                     async for line in r.aiter_lines():
                         if line.startswith("data:"):
@@ -261,7 +282,7 @@ class OpenRouterProvider(BaseProvider):
 
         headers = {
             "Authorization": f"Bearer {self.api_key}",
-            "HTTP-Referer": "http://localhost:8000",
+            "HTTP-Referer": "http://localhost",
             "X-Title": "AI Coding IDE",
         }
 
@@ -282,10 +303,10 @@ class OpenRouterProvider(BaseProvider):
 
         headers = {
             "Authorization": f"Bearer {self.api_key}",
-            "HTTP-Referer": "http://localhost:8000",
+            "HTTP-Referer": "http://localhost",
             "X-Title": "AI Coding IDE",
             "Accept": "text/event-stream",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
 
         async with httpx.AsyncClient(timeout=None) as client:
@@ -327,10 +348,10 @@ class SiliconFlowProvider(BaseProvider):
 
     async def chat_stream(self, model: str, messages: list, tools: list = None):
         payload = {
-            "model": model, 
-            "messages": messages, 
-            "stream": True, 
-            "max_tokens": 4096
+            "model": model,
+            "messages": messages,
+            "stream": True,
+            "max_tokens": 4096,
         }
         if tools:
             payload["tools"] = tools
@@ -338,7 +359,7 @@ class SiliconFlowProvider(BaseProvider):
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Accept": "text/event-stream",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
         async with httpx.AsyncClient(timeout=None) as client:
             async with client.stream(
@@ -351,6 +372,7 @@ class SiliconFlowProvider(BaseProvider):
                     if line.startswith("data:"):
                         yield line
 
+
 class LocalProvider(BaseProvider):
     def __init__(self, inference):
         super().__init__("", "")
@@ -358,8 +380,11 @@ class LocalProvider(BaseProvider):
 
     async def chat(self, model: str, messages: list, tools: list = None):
         import asyncio
+
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, self.inference.chat, messages, 2048, 0.7, tools)
+        return await loop.run_in_executor(
+            None, self.inference.chat, messages, 2048, 0.7, tools
+        )
 
     async def chat_stream(self, model: str, messages: list, tools: list = None):
         for chunk in self.inference.chat_stream(messages, tools=tools):
@@ -386,7 +411,10 @@ class ModelOrchestrator:
             if not m.requires_key:
                 result.append(m)
             elif m.provider in self.providers:
-                if self.providers[m.provider].api_key:
+                provider = self.providers[m.provider]
+                if provider.api_key and provider.validate_key():
+                    result.append(m)
+                elif provider._validated:
                     result.append(m)
         return result
 
@@ -402,11 +430,20 @@ class ModelOrchestrator:
         available = self.get_configured_models()
         available = [m for m in available if m.cooldown_until <= time.time()]
 
-        if need_tools:
-            available = [m for m in available if m.supports_tools]
-
         if not available:
             return None
+
+        # ABSOLUTE FALLBACK: If any configured model exists, return one
+        # Local models handle tools via prompt-based tool calling in the worker
+        if need_tools:
+            tools_models = [m for m in available if m.supports_tools]
+            if tools_models:
+                # Prefer models that explicitly support tools
+                return max(tools_models, key=lambda m: m.score)
+            else:
+                # FALLBACK: Return any available model (local models handle tools via prompts)
+                # This prevents "No models support tool calls" error
+                return max(available, key=lambda m: m.score)
 
         if task == "autocomplete":
             return min(available, key=lambda m: m.latency)
@@ -425,11 +462,21 @@ class ModelOrchestrator:
         for attempt in range(self.max_retries):
             model = self.pick_model(task, need_tools)
             if not model:
+                # Fallback: if we need tools but no model supports them, try without tools flag
                 if need_tools:
-                    raise Exception("No models support tool calls")
-                raise last_error or Exception(
-                    "No available models - please setup an API key"
-                )
+                    need_tools = False
+                    model = self.pick_model(task, need_tools=False)
+                    if model:
+                        # Continue without tools - local models handle tools via prompts
+                        tools = None
+                    else:
+                        raise last_error or Exception(
+                            "No available models - please setup an API key"
+                        )
+                else:
+                    raise last_error or Exception(
+                        "No available models - please setup an API key"
+                    )
 
             if model.name in tried_models and self.auto_switch:
                 model.cooldown_until = time.time() + 30
@@ -459,9 +506,19 @@ class ModelOrchestrator:
         for attempt in range(self.max_retries):
             model = self.pick_model(task, need_tools)
             if not model:
+                # Fallback: if we need tools but no model supports them, try without tools flag
                 if need_tools:
-                    raise Exception("No models support tool calls")
-                raise last_error or Exception("No available models")
+                    need_tools = False
+                    model = self.pick_model(task, need_tools=False)
+                    if model:
+                        # Continue without tools - local models handle tools via prompts
+                        tools = None
+                    else:
+                        raise last_error or Exception(
+                            "No available models - please setup an API key"
+                        )
+                else:
+                    raise last_error or Exception("No available models")
 
             if model.name in tried_models and self.auto_switch:
                 model.cooldown_until = time.time() + 30

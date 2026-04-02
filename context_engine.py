@@ -6,11 +6,14 @@ Context Engine з використанням sentence-transformers для роз
 import asyncio
 import hashlib
 import json
+import logging
 import os
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 
 class ContextEngine:
@@ -38,8 +41,9 @@ class ContextEngine:
         # Model cache
         self._model = None
         self._model_loaded = False
+        self._query_cache: Dict[str, List[Dict]] = {}
+        self._query_cache_max = 100
 
-        # Завантаження кешу
         self._load_cache()
 
     def _get_model(self):
@@ -48,18 +52,18 @@ class ContextEngine:
             try:
                 from sentence_transformers import SentenceTransformer
 
-                print(f"🧠 Завантаження моделі ембедингів: {self.model_name}...")
+                logger.info("🧠 Завантаження моделі ембедингів: %s...", self.model_name)
                 self._model = SentenceTransformer(self.model_name)
                 self._model_loaded = True
-                print("✅ Модель ембедингів готова!")
+                logger.info("✅ Модель ембедингів готова!")
             except ImportError:
-                print(
-                    "⚠️ sentence-transformers не встановлено. Використовую резервний режим."
+                logger.warning(
+                    "sentence-transformers not installed. Using fallback mode."
                 )
                 self._model = None
                 self._model_loaded = True
             except Exception as e:
-                print(f"⚠️ Помилка завантаження моделі: {e}. Резервний режим.")
+                logger.warning("Error loading model: %s. Using fallback mode.", e)
                 self._model = None
                 self._model_loaded = True
 
@@ -74,7 +78,7 @@ class ContextEngine:
                 embedding = model.encode([text], convert_to_numpy=True)[0]
                 return embedding.reshape(1, -1).astype(np.float32)
             except Exception as e:
-                print(f"⚠️ Помилка ембедингу: {e}")
+                logger.warning("Embedding error: %s", e)
 
         # Резервний режим: TF-IDF подібний підхід
         return self._fallback_embedding(text)
@@ -88,9 +92,9 @@ class ContextEngine:
         for token in tokens:
             if len(token) > 2:
                 h = hashlib.sha256(token.encode()).digest()
-                token_hash[token] = np.frombuffer(h[:16], dtype=np.uint8).astype(
-                    np.float32
-                ) / 255.0
+                token_hash[token] = (
+                    np.frombuffer(h[:16], dtype=np.uint8).astype(np.float32) / 255.0
+                )
 
         # Average pooling
         if token_hash:
@@ -175,7 +179,7 @@ class ContextEngine:
 
                 self.index = faiss.IndexFlatIP(self.embedding_dim)  # Inner product
             except ImportError:
-                print("⚠️ FAISS not installed. Context search disabled.")
+                logger.warning("FAISS not installed. Context search disabled.")
                 return 0
 
         file_hash = hashlib.md5(content.encode()).hexdigest()
@@ -219,7 +223,7 @@ class ContextEngine:
                 )
                 added += 1
             except Exception as e:
-                print(f"⚠️ Помилка додавання чанку: {e}")
+                logger.warning("Error adding chunk: %s", e)
 
         # Зберегти кеш
         self._save_cache()
@@ -296,7 +300,16 @@ class ContextEngine:
             dirs[:] = [
                 d
                 for d in dirs
-                if d not in [".git", "__pycache__", "node_modules", "venv", ".venv", "dist", "build"]
+                if d
+                not in [
+                    ".git",
+                    "__pycache__",
+                    "node_modules",
+                    "venv",
+                    ".venv",
+                    "dist",
+                    "build",
+                ]
             ]
 
             for file in files:
@@ -321,8 +334,48 @@ class ContextEngine:
         return stats
 
     def search(self, query: str, k: int = 5) -> List[Dict]:
-        """Пошук схожих чанків"""
+        cache_key = f"{query}:{k}"
+        if cache_key in self._query_cache:
+            return self._query_cache[cache_key]
+
         if self.index is None or self.index.ntotal == 0:
+            return []
+
+        try:
+            query_embedding = self.get_embedding(query)
+            from faiss import normalize_L2
+
+            normalize_L2(query_embedding)
+
+            k = min(k, self.index.ntotal)
+            if k == 0:
+                return []
+
+            similarities, indices = self.index.search(query_embedding, k)
+
+            results = []
+            for i, idx in enumerate(indices[0]):
+                if idx < len(self.chunks) and similarities[0][i] > 0.1:
+                    chunk = self.chunks[idx]
+                    results.append(
+                        {
+                            "content": chunk["content"],
+                            "filepath": chunk["filepath"],
+                            "start_line": chunk["start_line"],
+                            "end_line": chunk["end_line"],
+                            "similarity": float(similarities[0][i]),
+                        }
+                    )
+
+            results = sorted(results, key=lambda x: x["similarity"], reverse=True)
+
+            if len(self._query_cache) < self._query_cache_max:
+                self._query_cache[cache_key] = results
+
+            return results
+
+        except Exception as e:
+            print(f"⚠️ Помилка пошуку: {e}")
             return []
 
         try:
@@ -358,7 +411,9 @@ class ContextEngine:
             print(f"⚠️ Помилка пошуку: {e}")
             return []
 
-    def get_context_for_query(self, query: str, k: int = 5, max_tokens: int = 1500) -> str:
+    def get_context_for_query(
+        self, query: str, k: int = 5, max_tokens: int = 1500
+    ) -> str:
         """Отримати контекст для запиту"""
         results = self.search(query, k)
 
@@ -380,9 +435,9 @@ class ContextEngine:
 
             context_parts.append(
                 f"📄 Файл: {filepath} ({lines})\n"
-                f"{'='*60}\n"
+                f"{'=' * 60}\n"
                 f"{result['content']}\n"
-                f"{'='*60}"
+                f"{'=' * 60}"
             )
             current_tokens += tokens
 
@@ -405,6 +460,13 @@ class ContextEngine:
             with open(self.cache_file, "w") as f:
                 json.dump(cache_data, f, indent=2)
 
+            # Save FAISS index
+            if self.index is not None:
+                import faiss
+
+                index_path = os.path.join(self.cache_dir, "faiss_index.bin")
+                faiss.write_index(self.index, index_path)
+
         except Exception as e:
             print(f"⚠️ Помилка збереження кешу: {e}")
 
@@ -425,10 +487,18 @@ class ContextEngine:
             self.file_hashes = cache_data.get("file_hashes", {})
             chunk_data = cache_data.get("chunks", [])
 
-            # Відновити чанки (але не індекс - треба переіндексувати)
+            # Відновити чанки
             for i, c in enumerate(chunk_data):
                 c["embedding_index"] = i
                 self.chunks.append(c)
+
+            # Відновити FAISS індекс
+            import faiss
+
+            index_path = os.path.join(self.cache_dir, "faiss_index.bin")
+            if os.path.exists(index_path):
+                self.index = faiss.read_index(index_path)
+                print(f"✅ Відновлено FAISS індекс: {self.index.ntotal} векторів")
 
             print(f"✅ Завантажено кеш: {len(self.chunks)} чанків")
 

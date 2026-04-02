@@ -56,275 +56,323 @@ class LocalModelManager:
 
     def _build_model_catalog(self) -> List[Dict]:
         """Побудувати каталог моделей з кількох джерел"""
-        
+
         catalog = []
-        
+
         # ========== 64GB RAM - НАЙПОТУЖНІШІ ==========
-        catalog.extend([
-            {
-                "name": "Qwen2-72B-Instruct",
-                "size_gb": 38.5,
-                "ram_required_gb": 64,
-                "description": "Найпотужніша 72B",
-                "url": "https://huggingface.co/Qwen/Qwen2-72B-Instruct-GGUF/resolve/main/qwen2-72b-instruct-q4_0.gguf",
-                "file": "qwen2-72b-instruct-q4_0.gguf",
-                "tags": ["chat", "code", "multilingual"],
-            },
-            {
-                "name": "Yi-34B-Chat",
-                "size_gb": 19.2,
-                "ram_required_gb": 64,
-                "description": "01.AI Yi 34B Chat",
-                "url": "https://huggingface.co/TheBloke/Yi-34B-Chat-GGUF/resolve/main/yi-34b-chat-q4_k_m.gguf",
-                "file": "yi-34b-chat-q4_k_m.gguf",
-                "tags": ["chat", "reasoning"],
-            },
-        ])
+        catalog.extend(
+            [
+                {
+                    "name": "Qwen2-72B-Instruct",
+                    "size_gb": 40.0,
+                    "ram_required_gb": 64,
+                    "description": "Найпотужніша 72B (потребує багато RAM)",
+                    "url": "https://huggingface.co/Qwen/Qwen2-72B-Instruct-GGUF/resolve/main/qwen2-72b-instruct-q4_k_m.gguf",
+                    "file": "qwen2-72b-instruct-q4_k_m.gguf",
+                    "tags": ["chat", "code", "multilingual", "heavy"],
+                },
+                {
+                    "name": "Mistral-Small-24B-Instruct-2501",
+                    "size_gb": 14.3,
+                    "ram_required_gb": 32,
+                    "description": "🏆 SOTA 2025: Найкращий баланс розуму та швидкості",
+                    "url": "https://huggingface.co/bartowski/Mistral-Small-24B-Instruct-2501-GGUF/resolve/main/Mistral-Small-24B-Instruct-2501-Q4_K_M.gguf",
+                    "file": "Mistral-Small-24B-Instruct-2501-Q4_K_M.gguf",
+                    "tags": ["chat", "reasoning", "recommended"],
+                },
+                {
+                    "name": "GLM-4-32B-0414",
+                    "size_gb": 19.7,
+                    "ram_required_gb": 32,
+                    "description": "🛠️ GLM-4 32B - нативні tool calls, код, агентність",
+                    "url": "https://huggingface.co/bartowski/THUDM_GLM-4-32B-0414-GGUF/resolve/main/THUDM_GLM-4-32B-0414-Q4_K_M.gguf",
+                    "file": "THUDM_GLM-4-32B-0414-Q4_K_M.gguf",
+                    "tags": ["chat", "code", "tool_calling", "recommended"],
+                },
+                {
+                    "name": "GLM-4-32B-0414-Q3",
+                    "size_gb": 15.9,
+                    "ram_required_gb": 32,
+                    "description": "GLM-4 32B (легша версія Q3_K_M)",
+                    "url": "https://huggingface.co/bartowski/THUDM_GLM-4-32B-0414-GGUF/resolve/main/THUDM_GLM-4-32B-0414-Q3_K_M.gguf",
+                    "file": "THUDM_GLM-4-32B-0414-Q3_K_M.gguf",
+                    "tags": ["chat", "code", "tool_calling"],
+                },
+            ]
+        )
 
         # ========== 32GB RAM - ПОТУЖНІ ==========
-        catalog.extend([
-            {
-                "name": "Qwen2.5-Coder-32B-Instruct",
-                "size_gb": 18.5,
-                "ram_required_gb": 32,
-                "description": "🏆 Найкраща для коду 32B",
-                "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-32B-Instruct-GGUF/resolve/main/qwen2.5-coder-32b-instruct-q4_k_m.gguf",
-                "file": "qwen2.5-coder-32b-instruct-q4_k_m.gguf",
-                "tags": ["code", "SOTA"],
-            },
-            {
-                "name": "Qwen2.5-32B-Instruct",
-                "size_gb": 18.2,
-                "ram_required_gb": 32,
-                "description": "Qwen2.5 32B Chat",
-                "url": "https://huggingface.co/Qwen/Qwen2.5-32B-Instruct-GGUF/resolve/main/qwen2.5-32b-instruct-q4_k_m.gguf",
-                "file": "qwen2.5-32b-instruct-q4_k_m.gguf",
-                "tags": ["chat", "multilingual"],
-            },
-            {
-                "name": "Gemma-2-27B-IT",
-                "size_gb": 16.5,
-                "ram_required_gb": 32,
-                "description": "Google Gemma 2 27B",
-                "url": "https://huggingface.co/bartowski/gemma-2-27b-it-GGUF/resolve/main/gemma-2-27b-it-Q4_K_M.gguf",
-                "file": "gemma-2-27b-it-Q4_K_M.gguf",
-                "tags": ["chat", "google"],
-            },
-            {
-                "name": "GLM-4-9B-Chat",
-                "size_gb": 9.5,
-                "ram_required_gb": 32,
-                "description": "GLM-4 Chinese champion",
-                "url": "https://huggingface.co/THUDM/glm-4-9b-chat-GGUF/resolve/main/glm-4-9b-chat-q4_k_m.gguf",
-                "file": "glm-4-9b-chat-q4_k_m.gguf",
-                "tags": ["chat", "chinese"],
-            },
-            {
-                "name": "Gemma-2-9B-IT",
-                "size_gb": 5.5,
-                "ram_required_gb": 32,
-                "description": "Google Gemma 2 9B",
-                "url": "https://huggingface.co/google/gemma-2-9b-it-GGUF/resolve/main/gemma-2-9b-it-q4_k_m.gguf",
-                "file": "gemma-2-9b-it-q4_k_m.gguf",
-                "tags": ["chat", "google"],
-            },
-        ])
+        catalog.extend(
+            [
+                {
+                    "name": "Qwen2.5-Coder-32B-Instruct",
+                    "size_gb": 18.5,
+                    "ram_required_gb": 32,
+                    "description": "🏆 Найкраща для коду 32B",
+                    "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-32B-Instruct-GGUF/resolve/main/qwen2.5-coder-32b-instruct-q4_k_m.gguf",
+                    "file": "qwen2.5-coder-32b-instruct-q4_k_m.gguf",
+                    "tags": ["code", "SOTA"],
+                },
+                {
+                    "name": "Qwen2.5-32B-Instruct",
+                    "size_gb": 18.2,
+                    "ram_required_gb": 32,
+                    "description": "Qwen2.5 32B Chat",
+                    "url": "https://huggingface.co/Qwen/Qwen2.5-32B-Instruct-GGUF/resolve/main/qwen2.5-32b-instruct-q4_k_m.gguf",
+                    "file": "qwen2.5-32b-instruct-q4_k_m.gguf",
+                    "tags": ["chat", "multilingual"],
+                },
+                {
+                    "name": "Gemma-2-27B-IT",
+                    "size_gb": 16.5,
+                    "ram_required_gb": 32,
+                    "description": "Google Gemma 2 27B",
+                    "url": "https://huggingface.co/bartowski/gemma-2-27b-it-GGUF/resolve/main/gemma-2-27b-it-Q4_K_M.gguf",
+                    "file": "gemma-2-27b-it-Q4_K_M.gguf",
+                    "tags": ["chat", "google"],
+                },
+                {
+                    "name": "GLM-4-9B-Chat",
+                    "size_gb": 5.5,
+                    "ram_required_gb": 16,
+                    "description": "🛠️ GLM-4 9B - tool calls, компактна та розумна",
+                    "url": "https://huggingface.co/bartowski/glm-4-9b-chat-GGUF/resolve/main/glm-4-9b-chat-Q4_K_M.gguf",
+                    "file": "glm-4-9b-chat-Q4_K_M.gguf",
+                    "tags": ["chat", "code", "tool_calling"],
+                },
+                {
+                    "name": "GLM-4-9B-Chat-Q8",
+                    "size_gb": 10.0,
+                    "ram_required_gb": 16,
+                    "description": "🛠️ GLM-4 9B (Висока якість Q8)",
+                    "url": "https://huggingface.co/bartowski/glm-4-9b-chat-GGUF/resolve/main/glm-4-9b-chat-Q8_0.gguf",
+                    "file": "glm-4-9b-chat-Q8_0.gguf",
+                    "tags": ["chat", "code", "tool_calling"],
+                },
+                {
+                    "name": "Gemma-2-9B-IT",
+                    "size_gb": 5.5,
+                    "ram_required_gb": 32,
+                    "description": "Google Gemma 2 9B",
+                    "url": "https://huggingface.co/google/gemma-2-9b-it-GGUF/resolve/main/gemma-2-9b-it-q4_k_m.gguf",
+                    "file": "gemma-2-9b-it-q4_k_m.gguf",
+                    "tags": ["chat", "google"],
+                },
+            ]
+        )
 
         # ========== 16GB RAM - СЕРЕДНІ ==========
-        catalog.extend([
-            {
-                "name": "Qwen2.5-Coder-14B-Instruct",
-                "size_gb": 8.4,
-                "ram_required_gb": 16,
-                "description": "🏆 Найкраща якість 14B",
-                "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-14B-Instruct-GGUF/resolve/main/qwen2.5-coder-14b-instruct-q4_k_m.gguf",
-                "file": "qwen2.5-coder-14b-instruct-q4_k_m.gguf",
-                "tags": ["code"],
-            },
-            {
-                "name": "Qwen2.5-14B-Instruct",
-                "size_gb": 8.2,
-                "ram_required_gb": 16,
-                "description": "Qwen2.5 14B Chat",
-                "url": "https://huggingface.co/Qwen/Qwen2.5-14B-Instruct-GGUF/resolve/main/qwen2.5-14b-instruct-q4_k_m.gguf",
-                "file": "qwen2.5-14b-instruct-q4_k_m.gguf",
-                "tags": ["chat"],
-            },
-            {
-                "name": "Mistral-Nemo-12B-Instruct",
-                "size_gb": 7.2,
-                "ram_required_gb": 16,
-                "description": "Mistral Nemo 12B",
-                "url": "https://huggingface.co/bartowski/Mistral-Nemo-12B-Instruct-GGUF/resolve/main/Mistral-Nemo-12B-Instruct-Q4_K_M.gguf",
-                "file": "Mistral-Nemo-12B-Instruct-Q4_K_M.gguf",
-                "tags": ["chat", "mistral"],
-            },
-            {
-                "name": "Mistral-7B-Instruct-v0.3",
-                "size_gb": 4.4,
-                "ram_required_gb": 16,
-                "description": "Mistral 7B Instruct",
-                "url": "https://huggingface.co/TheBloke/Mistral-7B-Instruct-v0.2-GGUF/resolve/main/mistral-7b-instruct-v0.2-q4_k_m.gguf",
-                "file": "mistral-7b-instruct-v0.2-q4_k_m.gguf",
-                "tags": ["chat", "mistral"],
-            },
-            {
-                "name": "Llama-3.2-3B-Instruct",
-                "size_gb": 2.0,
-                "ram_required_gb": 16,
-                "description": "Meta Llama 3.2 3B",
-                "url": "https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q4_K_M.gguf",
-                "file": "Llama-3.2-3B-Instruct-Q4_K_M.gguf",
-                "tags": ["chat", "meta"],
-            },
-            {
-                "name": "Llama-3.1-8B-Instruct",
-                "size_gb": 5.5,
-                "ram_required_gb": 16,
-                "description": "Meta Llama 3.1 8B",
-                "url": "https://huggingface.co/bartowski/Llama-3.1-8B-Instruct-GGUF/resolve/main/Llama-3.1-8B-Instruct-Q4_K_M.gguf",
-                "file": "Llama-3.1-8B-Instruct-Q4_K_M.gguf",
-                "tags": ["chat", "meta"],
-            },
-        ])
+        catalog.extend(
+            [
+                {
+                    "name": "Qwen2.5-Coder-14B-Instruct",
+                    "size_gb": 8.4,
+                    "ram_required_gb": 16,
+                    "description": "🏆 Найкраща якість 14B",
+                    "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-14B-Instruct-GGUF/resolve/main/qwen2.5-coder-14b-instruct-q4_k_m.gguf",
+                    "file": "qwen2.5-coder-14b-instruct-q4_k_m.gguf",
+                    "tags": ["code"],
+                },
+                {
+                    "name": "Qwen2.5-14B-Instruct",
+                    "size_gb": 8.2,
+                    "ram_required_gb": 16,
+                    "description": "Qwen2.5 14B Chat",
+                    "url": "https://huggingface.co/Qwen/Qwen2.5-14B-Instruct-GGUF/resolve/main/qwen2.5-14b-instruct-q4_k_m.gguf",
+                    "file": "qwen2.5-14b-instruct-q4_k_m.gguf",
+                    "tags": ["chat"],
+                },
+                {
+                    "name": "Mistral-Nemo-12B-Instruct",
+                    "size_gb": 7.2,
+                    "ram_required_gb": 16,
+                    "description": "Mistral Nemo 12B - дуже розумна для свого розміру",
+                    "url": "https://huggingface.co/bartowski/Mistral-Nemo-12B-Instruct-GGUF/resolve/main/Mistral-Nemo-12B-Instruct-Q4_K_M.gguf",
+                    "file": "Mistral-Nemo-12B-Instruct-Q4_K_M.gguf",
+                    "tags": ["chat", "mistral"],
+                },
+                {
+                    "name": "Llama-3.1-8B-Instruct-Q8",
+                    "size_gb": 8.5,
+                    "ram_required_gb": 16,
+                    "description": "🏆 Meta Llama 3.1 8B (Висока якість Q8)",
+                    "url": "https://huggingface.co/bartowski/Meta-Llama-3.1-8B-Instruct-GGUF/resolve/main/Meta-Llama-3.1-8B-Instruct-Q8_0.gguf",
+                    "file": "Meta-Llama-3.1-8B-Instruct-Q8_0.gguf",
+                    "tags": ["chat", "meta", "recommended"],
+                },
+                {
+                    "name": "Llama-3.1-8B-Instruct-Q4",
+                    "size_gb": 4.9,
+                    "ram_required_gb": 16,
+                    "description": "Meta Llama 3.1 8B (Оптимальна швидкість)",
+                    "url": "https://huggingface.co/bartowski/Meta-Llama-3.1-8B-Instruct-GGUF/resolve/main/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf",
+                    "file": "Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf",
+                    "tags": ["chat", "meta"],
+                },
+            ]
+        )
 
         # ========== 8GB RAM - ОПТИМАЛЬНІ ==========
-        catalog.extend([
-            {
-                "name": "Qwen2.5-Coder-7B-Instruct",
-                "size_gb": 4.4,
-                "ram_required_gb": 8,
-                "description": "🏆 Найкраща для коду 7B",
-                "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-7B-Instruct-GGUF/resolve/main/qwen2.5-coder-7b-instruct-q4_k_m.gguf",
-                "file": "qwen2.5-coder-7b-instruct-q4_k_m.gguf",
-                "tags": ["code", "recommended"],
-            },
-            {
-                "name": "Qwen2.5-7B-Instruct",
-                "size_gb": 4.1,
-                "ram_required_gb": 8,
-                "description": "Qwen2.5 7B Chat",
-                "url": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct-GGUF/resolve/main/qwen2.5-7b-instruct-q4_k_m.gguf",
-                "file": "qwen2.5-7b-instruct-q4_k_m.gguf",
-                "tags": ["chat"],
-            },
-            {
-                "name": "DeepSeek-Coder-6.7B-Instruct",
-                "size_gb": 4.2,
-                "ram_required_gb": 8,
-                "description": "DeepSeek Coder 6.7B",
-                "url": "https://huggingface.co/TheBloke/DeepSeek-Coder-6.7B-Instruct-GGUF/resolve/main/deepseek-coder-6.7b-instruct-q4_k_m.gguf",
-                "file": "deepseek-coder-6.7b-instruct-q4_k_m.gguf",
-                "tags": ["code"],
-            },
-            {
-                "name": "Phi-3.5-mini-Instruct",
-                "size_gb": 2.5,
-                "ram_required_gb": 8,
-                "description": "Microsoft Phi-3.5",
-                "url": "https://huggingface.co/microsoft/Phi-3.5-mini-instruct-GGUF/resolve/main/Phi-3.5-mini-instruct-q4.gguf",
-                "file": "Phi-3.5-mini-instruct-q4.gguf",
-                "tags": ["chat", "microsoft"],
-            },
-            {
-                "name": "Phi-3-mini-4k-instruct",
-                "size_gb": 2.2,
-                "ram_required_gb": 8,
-                "description": "Microsoft Phi-3 mini",
-                "url": "https://huggingface.co/microsoft/Phi-3-mini-4k-instruct-gguf/resolve/main/Phi-3-mini-4k-instruct-q4.gguf",
-                "file": "Phi-3-mini-4k-instruct-q4.gguf",
-                "tags": ["chat", "microsoft"],
-            },
-            {
-                "name": "SmolLM2-1.7B-Instruct",
-                "size_gb": 1.1,
-                "ram_required_gb": 8,
-                "description": "HuggingFace SmolLM2",
-                "url": "https://huggingface.co/HuggingFaceTB/SmolLM2-1.7B-Instruct-GGUF/resolve/main/SmolLM2-1.7B-Instruct-Q4_K_M.gguf",
-                "file": "SmolLM2-1.7B-Instruct-Q4_K_M.gguf",
-                "tags": ["chat", "small"],
-            },
-        ])
+        catalog.extend(
+            [
+                {
+                    "name": "Qwen2.5-Coder-7B-Instruct",
+                    "size_gb": 4.4,
+                    "ram_required_gb": 8,
+                    "description": "🏆 Найкраща для коду 7B",
+                    "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-7B-Instruct-GGUF/resolve/main/qwen2.5-coder-7b-instruct-q4_k_m.gguf",
+                    "file": "qwen2.5-coder-7b-instruct-q4_k_m.gguf",
+                    "tags": ["code", "recommended"],
+                },
+                {
+                    "name": "Qwen2.5-7B-Instruct",
+                    "size_gb": 4.1,
+                    "ram_required_gb": 8,
+                    "description": "Qwen2.5 7B Chat",
+                    "url": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct-GGUF/resolve/main/qwen2.5-7b-instruct-q4_k_m.gguf",
+                    "file": "qwen2.5-7b-instruct-q4_k_m.gguf",
+                    "tags": ["chat"],
+                },
+                {
+                    "name": "DeepSeek-Coder-6.7B-Instruct",
+                    "size_gb": 4.1,
+                    "ram_required_gb": 8,
+                    "description": "DeepSeek Coder 6.7B - надійна класика для коду",
+                    "url": "https://huggingface.co/TheBloke/deepseek-coder-6.7B-instruct-GGUF/resolve/main/deepseek-coder-6.7b-instruct.Q4_K_M.gguf",
+                    "file": "deepseek-coder-6.7b-instruct.Q4_K_M.gguf",
+                    "tags": ["code"],
+                },
+                {
+                    "name": "Phi-3.5-mini-Instruct",
+                    "size_gb": 2.5,
+                    "ram_required_gb": 8,
+                    "description": "Microsoft Phi-3.5",
+                    "url": "https://huggingface.co/microsoft/Phi-3.5-mini-instruct-GGUF/resolve/main/Phi-3.5-mini-instruct-q4.gguf",
+                    "file": "Phi-3.5-mini-instruct-q4.gguf",
+                    "tags": ["chat", "microsoft"],
+                },
+                {
+                    "name": "Phi-3-mini-4k-instruct",
+                    "size_gb": 2.2,
+                    "ram_required_gb": 8,
+                    "description": "Microsoft Phi-3 mini",
+                    "url": "https://huggingface.co/microsoft/Phi-3-mini-4k-instruct-gguf/resolve/main/Phi-3-mini-4k-instruct-q4.gguf",
+                    "file": "Phi-3-mini-4k-instruct-q4.gguf",
+                    "tags": ["chat", "microsoft"],
+                },
+                {
+                    "name": "SmolLM2-1.7B-Instruct",
+                    "size_gb": 1.1,
+                    "ram_required_gb": 8,
+                    "description": "🏆 HuggingFace SmolLM2 - надшвидка та розумна для 1.7B",
+                    "url": "https://huggingface.co/bartowski/SmolLM2-1.7B-Instruct-GGUF/resolve/main/SmolLM2-1.7B-Instruct-Q4_K_M.gguf",
+                    "file": "SmolLM2-1.7B-Instruct-Q4_K_M.gguf",
+                    "tags": ["chat", "small", "recommended"],
+                },
+                {
+                    "name": "GLM-Edge-4B-Chat",
+                    "size_gb": 2.6,
+                    "ram_required_gb": 8,
+                    "description": "🛠️ GLM-Edge 4B - оптимізована для мобільних та ПК (8GB RAM)",
+                    "url": "https://huggingface.co/zai-org/glm-edge-4b-chat-gguf/resolve/main/ggml-model-Q4_K_M.gguf",
+                    "file": "glm-edge-4b-chat-q4_k_m.gguf",
+                    "tags": ["chat", "edge", "tool_calling"],
+                },
+            ]
+        )
 
         # ========== 4GB RAM - МАЛЕНЬКІ ==========
-        catalog.extend([
-            {
-                "name": "Qwen2.5-Coder-3B-Instruct",
-                "size_gb": 1.9,
-                "ram_required_gb": 4,
-                "description": "Qwen Coder 3B",
-                "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-3B-Instruct-GGUF/resolve/main/qwen2.5-coder-3b-instruct-q4_0.gguf",
-                "file": "qwen2.5-coder-3b-instruct-q4_0.gguf",
-                "tags": ["code"],
-            },
-            {
-                "name": "Qwen2.5-Coder-1.5B-Instruct",
-                "size_gb": 1.0,
-                "ram_required_gb": 4,
-                "description": "Qwen Coder 1.5B",
-                "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF/resolve/main/qwen2.5-coder-1.5b-instruct-q4_0.gguf",
-                "file": "qwen2.5-coder-1.5b-instruct-q4_0.gguf",
-                "tags": ["code", "fast"],
-            },
-            {
-                "name": "Qwen2.5-1.5B-Instruct",
-                "size_gb": 1.0,
-                "ram_required_gb": 4,
-                "description": "Qwen2.5 1.5B Chat",
-                "url": "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_0.gguf",
-                "file": "qwen2.5-1.5b-instruct-q4_0.gguf",
-                "tags": ["chat", "fast"],
-            },
-            {
-                "name": "Llama-3.2-1B-Instruct",
-                "size_gb": 0.7,
-                "ram_required_gb": 4,
-                "description": "Meta Llama 3.2 1B",
-                "url": "https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf",
-                "file": "Llama-3.2-1B-Instruct-Q4_K_M.gguf",
-                "tags": ["chat", "meta", "tiny"],
-            },
-            {
-                "name": "TinyLlama-1.1B-Chat",
-                "size_gb": 0.7,
-                "ram_required_gb": 4,
-                "description": "TinyLlama 1.1B",
-                "url": "https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/TinyLlama-1.1B-Chat-v1.0-q4_k_m.gguf",
-                "file": "TinyLlama-1.1B-Chat-v1.0-q4_k_m.gguf",
-                "tags": ["chat", "tiny"],
-            },
-        ])
+        catalog.extend(
+            [
+                {
+                    "name": "Qwen2.5-Coder-3B-Instruct",
+                    "size_gb": 1.9,
+                    "ram_required_gb": 4,
+                    "description": "Qwen Coder 3B",
+                    "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-3B-Instruct-GGUF/resolve/main/qwen2.5-coder-3b-instruct-q4_0.gguf",
+                    "file": "qwen2.5-coder-3b-instruct-q4_0.gguf",
+                    "tags": ["code"],
+                },
+                {
+                    "name": "Qwen2.5-Coder-1.5B-Instruct",
+                    "size_gb": 1.0,
+                    "ram_required_gb": 4,
+                    "description": "Qwen Coder 1.5B",
+                    "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF/resolve/main/qwen2.5-coder-1.5b-instruct-q4_0.gguf",
+                    "file": "qwen2.5-coder-1.5b-instruct-q4_0.gguf",
+                    "tags": ["code", "fast"],
+                },
+                {
+                    "name": "GLM-Edge-1.5B-Chat",
+                    "size_gb": 1.0,
+                    "ram_required_gb": 4,
+                    "description": "🛠️ GLM-Edge 1.5B - надлегка модель з підтримкою tool calls (4GB RAM)",
+                    "url": "https://huggingface.co/zai-org/glm-edge-1.5b-chat-gguf/resolve/main/ggml-model-Q4_K_M.gguf",
+                    "file": "glm-edge-1.5b-chat-q4_k_m.gguf",
+                    "tags": ["chat", "edge", "tool_calling"],
+                },
+                {
+                    "name": "Qwen2.5-1.5B-Instruct",
+                    "size_gb": 1.0,
+                    "ram_required_gb": 4,
+                    "description": "Qwen2.5 1.5B Chat",
+                    "url": "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_0.gguf",
+                    "file": "qwen2.5-1.5b-instruct-q4_0.gguf",
+                    "tags": ["chat", "fast"],
+                },
+                {
+                    "name": "Llama-3.2-1B-Instruct",
+                    "size_gb": 0.7,
+                    "ram_required_gb": 4,
+                    "description": "Meta Llama 3.2 1B",
+                    "url": "https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf",
+                    "file": "Llama-3.2-1B-Instruct-Q4_K_M.gguf",
+                    "tags": ["chat", "meta", "tiny"],
+                },
+                {
+                    "name": "TinyLlama-1.1B-Chat",
+                    "size_gb": 0.7,
+                    "ram_required_gb": 4,
+                    "description": "TinyLlama 1.1B - мінімальна модель для слабких ПК",
+                    "url": "https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf",
+                    "file": "tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf",
+                    "tags": ["chat", "tiny"],
+                },
+            ]
+        )
 
         # ========== 2GB RAM - КРИХІТНІ ==========
-        catalog.extend([
-            {
-                "name": "Qwen2.5-Coder-0.5B-Instruct",
-                "size_gb": 0.5,
-                "ram_required_gb": 2,
-                "description": "Qwen Coder 0.5B",
-                "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-0.5B-Instruct-GGUF/resolve/main/qwen2.5-coder-0.5b-instruct-q4_k_m.gguf",
-                "file": "qwen2.5-coder-0.5b-instruct-q4_k_m.gguf",
-                "tags": ["code", "tiny"],
-            },
-            {
-                "name": "Qwen2.5-0.5B-Instruct",
-                "size_gb": 0.4,
-                "ram_required_gb": 2,
-                "description": "Qwen2.5 0.5B Chat",
-                "url": "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_0.gguf",
-                "file": "qwen2.5-0.5b-instruct-q4_0.gguf",
-                "tags": ["chat", "tiny"],
-            },
-            {
-                "name": "SmolLM2-135M-Instruct",
-                "size_gb": 0.1,
-                "ram_required_gb": 2,
-                "description": "SmolLM2 135M Ultra-fast",
-                "url": "https://huggingface.co/HuggingFaceTB/SmolLM2-135M-Instruct-GGUF/resolve/main/SmolLM2-135M-Instruct-Q4_K_M.gguf",
-                "file": "SmolLM2-135M-Instruct-Q4_K_M.gguf",
-                "tags": ["chat", "ultra-fast"],
-            },
-        ])
+        catalog.extend(
+            [
+                {
+                    "name": "Qwen2.5-Coder-0.5B-Instruct",
+                    "size_gb": 0.5,
+                    "ram_required_gb": 2,
+                    "description": "Qwen Coder 0.5B",
+                    "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-0.5B-Instruct-GGUF/resolve/main/qwen2.5-coder-0.5b-instruct-q4_k_m.gguf",
+                    "file": "qwen2.5-coder-0.5b-instruct-q4_k_m.gguf",
+                    "tags": ["code", "tiny"],
+                },
+                {
+                    "name": "Qwen2.5-0.5B-Instruct",
+                    "size_gb": 0.4,
+                    "ram_required_gb": 2,
+                    "description": "Qwen2.5 0.5B Chat",
+                    "url": "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_0.gguf",
+                    "file": "qwen2.5-0.5b-instruct-q4_0.gguf",
+                    "tags": ["chat", "tiny"],
+                },
+                {
+                    "name": "SmolLM2-135M-Instruct",
+                    "size_gb": 0.1,
+                    "ram_required_gb": 2,
+                    "description": "SmolLM2 135M Ultra-fast - майже миттєві відповіді",
+                    "url": "https://huggingface.co/bartowski/SmolLM2-135M-Instruct-GGUF/resolve/main/SmolLM2-135M-Instruct-Q4_K_M.gguf",
+                    "file": "SmolLM2-135M-Instruct-Q4_K_M.gguf",
+                    "tags": ["chat", "ultra-fast"],
+                },
+            ]
+        )
 
         # Сортування: завантажені перші, потім сумісні за розміром
         def sort_key(m):
@@ -333,7 +381,7 @@ class LocalModelManager:
             return (not downloaded, not compatible, m["size_gb"])
 
         catalog.sort(key=sort_key)
-        
+
         return catalog
 
     def _is_model_downloaded(self, filename: str) -> bool:
@@ -344,10 +392,12 @@ class LocalModelManager:
         """Отримати загальну RAM в GB"""
         try:
             import psutil
+
             return psutil.virtual_memory().total / (1024**3)
         except:
             try:
                 import ctypes
+
                 kernel32 = ctypes.windll.kernel32
                 c_ulonglong = ctypes.c_ulonglong
 
@@ -372,18 +422,27 @@ class LocalModelManager:
                 return 8.0
 
     def get_compatible_models(self) -> List[Dict]:
-        """Отримати сумісні моделі"""
+        """Отримати сумісні моделі з попередженнями про RAM.
+
+        Моделі, що перевищують RAM, позначаються як 'is_heavy' з детальним
+        попередженням в 'reason'. Користувач бачить попередження перед завантаженням.
+        """
         system_ram = self.get_system_ram_gb()
         compatible = []
 
         for model in self.model_catalog:
-            is_compatible = model["ram_required_gb"] <= system_ram * 0.8
+            is_compatible = True
             reason = ""
+            is_heavy = False
 
-            if not is_compatible:
-                reason = f"Потрібно {model['ram_required_gb']}GB RAM, у вас {system_ram:.1f}GB"
+            if model["ram_required_gb"] > system_ram:
+                is_heavy = True
+                reason = (
+                    f"⚠️ Потрібно {model['ram_required_gb']}GB RAM, у вас {system_ram:.1f}GB. "
+                    f"Можлива повільна робота через свопінг на диск. "
+                    f"Рекомендується модель з RAM <= {system_ram:.0f}GB."
+                )
 
-            # Перевірка завантаження
             model_path = self.models_dir / model["file"]
             is_downloaded = False
             if model_path.exists():
@@ -392,20 +451,24 @@ class LocalModelManager:
                 if actual_size_mb > expected_size_mb * 0.9:
                     is_downloaded = True
                 else:
-                    print(f"Файл {model['name']} пошкоджено: {actual_size_mb:.0f}MB vs {expected_size_mb:.0f}MB")
+                    print(
+                        f"Файл {model['name']} пошкоджено: {actual_size_mb:.0f}MB vs {expected_size_mb:.0f}MB"
+                    )
                     model_path.unlink()
 
-            compatible.append({
-                **model,
-                "is_compatible": is_compatible,
-                "reason": reason,
-                "is_downloaded": is_downloaded,
-                "system_ram_gb": system_ram,
-            })
+            compatible.append(
+                {
+                    **model,
+                    "is_compatible": is_compatible,
+                    "is_heavy": is_heavy,
+                    "reason": reason,
+                    "is_downloaded": is_downloaded,
+                    "system_ram_gb": system_ram,
+                }
+            )
 
-        # Сортування: завантажені перші, потім сумісні
         compatible.sort(
-            key=lambda m: (not m["is_downloaded"], not m["is_compatible"], m["size_gb"])
+            key=lambda m: (not m["is_downloaded"], m["is_heavy"], m["size_gb"])
         )
 
         return compatible
@@ -418,7 +481,9 @@ class LocalModelManager:
             if model["file"] in downloaded_files:
                 model["is_downloaded"] = True
 
-    def download_model(self, model: Dict, progress_callback=None, use_mirror: str = None) -> bool:
+    def download_model(
+        self, model: Dict, progress_callback=None, use_mirror: str = None
+    ) -> bool:
         """
         Завантажити модель з дзеркала
 
@@ -429,7 +494,7 @@ class LocalModelManager:
         """
         mirror = use_mirror or self.preferred_mirror
         url = model["url"]
-        
+
         # Замінити дзеркало якщо потрібно
         if mirror != "huggingface" and "huggingface.co" in url:
             if mirror == "ghproxy":
@@ -477,10 +542,14 @@ class LocalModelManager:
                             progress_callback(progress, downloaded, total_size)
 
             final_size_mb = file_path.stat().st_size / (1024**2)
-            expected_mb = total_size / (1024**2) if total_size > 0 else expected_size_gb * 1024
-            
+            expected_mb = (
+                total_size / (1024**2) if total_size > 0 else expected_size_gb * 1024
+            )
+
             if final_size_mb < expected_mb * 0.9:
-                raise Exception(f"Завантаження неповне: {final_size_mb:.0f}MB vs {expected_mb:.0f}MB")
+                raise Exception(
+                    f"Завантаження неповне: {final_size_mb:.0f}MB vs {expected_mb:.0f}MB"
+                )
 
             print(f"✅ Завантажено: {file_path} ({final_size_mb:.0f}MB)")
             model["is_downloaded"] = True
@@ -546,6 +615,8 @@ class LocalModelManager:
         """Пошук моделей за назвою"""
         query_lower = query.lower()
         return [
-            m for m in self.model_catalog
-            if query_lower in m["name"].lower() or query_lower in m["description"].lower()
+            m
+            for m in self.model_catalog
+            if query_lower in m["name"].lower()
+            or query_lower in m["description"].lower()
         ]
