@@ -452,7 +452,11 @@ class ModelOrchestrator:
         return max(available, key=lambda m: m.score)
 
     async def stream_request(
-        self, messages: list, task: str = "chat", tools: list = None
+        self,
+        messages: list,
+        task: str = "chat",
+        tools: list = None,
+        status_callback=None,
     ):
         self.rank_models()
         need_tools = tools is not None
@@ -487,13 +491,24 @@ class ModelOrchestrator:
             if not provider:
                 continue
 
+            if status_callback:
+                status_callback(f"🤖 Модель: {model.name} ({model.provider})")
+
             try:
+                token_count = 0
                 async for chunk in provider.chat_stream(model.name, messages, tools):
+                    token_count += 1
+                    if status_callback and token_count % 50 == 0:
+                        status_callback(f"📝 Генерація... ({token_count} токенів)")
                     yield chunk
+                if status_callback:
+                    status_callback(f"✅ Готово ({token_count} токенів)")
                 return
             except Exception as e:
                 last_error = e
                 model.cooldown_until = time.time() + 60
+                if status_callback:
+                    status_callback(f"❌ {model.name}: {str(e)[:50]}")
 
         raise last_error or Exception("All models failed")
 

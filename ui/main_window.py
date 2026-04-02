@@ -710,6 +710,7 @@ class MainWindow(QMainWindow):
             "Ask AI... (Ctrl+V для вставки, Drag&Drop для файлів)"
         )
         self.chat_input.keyPressEvent = self.key_press
+        self.chat_input.insertFromMimeData = self._handle_paste
         self.chat_input.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.chat_input.setAcceptDrops(True)  # Дозволити drag-and-drop
         self.chat_input.setStyleSheet("""
@@ -1338,6 +1339,24 @@ class MainWindow(QMainWindow):
         else:
             super().dragEnterEvent(event)
 
+    def _handle_paste(self, mime_data):
+        """Перехопити вставку зображень з буфера"""
+        if mime_data.hasImage():
+            self.add_chat_bubble(
+                "⚠️ Вставка зображень не підтримується — ця модель працює тільки з текстом. "
+                "Перетягніть файл з кодом або вставте текст.",
+                "system",
+            )
+            return
+        if mime_data.hasUrls():
+            for url in mime_data.urls():
+                if url.isLocalFile():
+                    file_path = url.toLocalFile()
+                    if os.path.isfile(file_path):
+                        self._add_file_to_chat(file_path)
+            return
+        QTextEdit.insertFromMimeData(self.chat_input, mime_data)
+
     def key_press(self, e):
         if e.key() == Qt.Key_Return and not e.modifiers() & Qt.ShiftModifier:
             self.send()
@@ -1499,9 +1518,14 @@ class MainWindow(QMainWindow):
         if not configured or is_local:
             # Use local inference directly (handles tool calling via prompt)
             response_data = {"ready": False, "response": None, "error": None}
+            self._update_status("🧠 Локальна модель...")
+
+            # Show thinking indicator in chat
+            self.thinking_bubble = self.add_chat_bubble("🤔 Думаю...", "system")
 
             def generate_response():
                 try:
+                    self._update_status("📝 Генерація...")
                     tools_to_pass = (
                         TOOL_DEFINITIONS if tools_mode and is_local else None
                     )
@@ -1512,6 +1536,7 @@ class MainWindow(QMainWindow):
                         {"role": "assistant", "content": response_data["response"]}
                     )
                     response_data["ready"] = True
+                    self._update_status("✅ Готово")
                 except Exception as e:
                     response_data["error"] = str(e)
                     response_data["ready"] = True
@@ -1658,6 +1683,11 @@ class MainWindow(QMainWindow):
         if self.is_generating and not response_data.get("ready"):
             QTimer.singleShot(200, lambda: self.check_generation(response_data))
             return
+
+        # Remove thinking indicator
+        if hasattr(self, "thinking_bubble") and self.thinking_bubble:
+            self.thinking_bubble.setParent(None)
+            self.thinking_bubble = None
 
         if response_data.get("error"):
             self._finish_generation()
