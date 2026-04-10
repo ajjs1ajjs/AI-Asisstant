@@ -985,6 +985,11 @@ class JupyterViewerWidget(QFrame):
         self.data_analyst = DataAnalystWidget()
         self.bottom_tabs.addTab(self.data_analyst, "📈 Data Analyst")
 
+        # 7. Background Jobs
+        from ui.jobs import BackgroundJobsWidget
+        self.jobs_viewer = BackgroundJobsWidget()
+        self.bottom_tabs.addTab(self.jobs_viewer, "⏳ Background Jobs")
+
         rl.addWidget(self.bottom_tabs)
         
         # Connect graph to file changes logic
@@ -2268,19 +2273,41 @@ class JupyterViewerWidget(QFrame):
             self.refresh_files()
 
     def toggle_voice_input(self):
-        """Voice-to-Code mapping (v6.0)"""
-        msg = "Створи папку 'backend' та файл 'api.py'" # Mock for demonstration
-        self.add_chat_bubble(f"🎤 Голос: {msg}", "user")
-        
-        # Simple Galactic mapping
-        if "створи папку" in msg.lower():
-            import re
-            match = re.search(r"'(.*?)'", msg)
-            if match:
-                folder = match.group(1)
-                self.agent_tools.create_directory(folder)
-                self.add_chat_bubble(f"✅ Голосова команда: Створено папку {folder}", "system")
-        self.send()
+        """Voice-to-Code with real SpeechRecognition (v6.0)"""
+        import threading
+        self.add_chat_bubble("🎤 Слухаю...", "system")
+
+        def listen():
+            try:
+                import speech_recognition as sr
+                r = sr.Recognizer()
+                with sr.Microphone() as source:
+                    r.adjust_for_ambient_noise(source, duration=0.5)
+                    audio = r.listen(source, timeout=5)
+                text = r.recognize_google(audio, language="uk-UA")
+                self.add_chat_bubble(f"🎤 Голос: {text}", "user")
+
+                # Map voice to tools
+                import re
+                tl = text.lower()
+                if "створи папку" in tl or "create folder" in tl:
+                    m = re.search(r"['\"]?(\w+)['\"]?$", text)
+                    if m:
+                        self.agent_tools.create_directory(m.group(1))
+                        self.add_chat_bubble(f"✅ Створено папку: {m.group(1)}", "system")
+                elif "створи файл" in tl or "create file" in tl:
+                    m = re.search(r"['\"]?(\S+\.[a-z]+)['\"]?$", text, re.I)
+                    if m:
+                        self.agent_tools.write_file(m.group(1), "")
+                        self.add_chat_bubble(f"✅ Створено файл: {m.group(1)}", "system")
+                else:
+                    # General: pass to AI
+                    self.chat_input.setPlainText(text)
+                    self.send()
+            except Exception as e:
+                self.add_chat_bubble(f"🎤 Помилка: {e}", "system")
+
+        threading.Thread(target=listen, daemon=True).start()
 
     def take_screenshot(self):
         """Take screenshot for Vision Analysis"""
