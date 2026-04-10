@@ -8,7 +8,7 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QTimer, QMimeData, QThread, Signal, QSize
+from PySide6.QtCore import Qt, QTimer, QMimeData, QThread, Signal, QSize, QProcess
 from PySide6.QtGui import (
     QColor,
     QDrag,
@@ -18,6 +18,8 @@ from PySide6.QtGui import (
     QIcon,
     QFont,
     QCursor,
+    QSyntaxHighlighter,
+    QTextCharFormat,
 )
 from PySide6.QtWidgets import (
     QApplication,
@@ -40,6 +42,7 @@ from PySide6.QtWidgets import (
     QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
+    QPlainTextEdit,
 )
 
 
@@ -515,6 +518,9 @@ class FileTree(QTreeWidget):
         self.refresh_requested.emit()
 
 
+            dot.setStyleSheet(f"color: {color}; {scale}")
+
+
 class TypingIndicator(QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -579,3 +585,240 @@ class TypingIndicator(QFrame):
                 "font-size: 20px; font-weight: bold;" if active else "font-size: 18px;"
             )
             dot.setStyleSheet(f"color: {color}; {scale}")
+
+
+class TerminalWidget(QFrame):
+    """
+    Built-in Terminal Emulator using QProcess.
+    """
+    error_detected = Signal(str) # Emits the error log when a crash is detected
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setStyleSheet("""
+            TerminalWidget {
+                background-color: #0c0c0c;
+                border-top: 1px solid #2d2d30;
+            }
+        """)
+        self.process = QProcess(self)
+        self.process.setProcessChannelMode(QProcess.MergedChannels)
+        self.process.readyReadStandardOutput.connect(self.read_output)
+        self.process.finished.connect(self.handle_finished)
+
+        self.setup_ui()
+        self.start_shell()
+
+    def setup_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        # Toolbar
+        toolbar = QFrame()
+        toolbar.setFixedHeight(30)
+        toolbar.setStyleSheet("background-color: #1e1e1e; border-bottom: 1px solid #2d2d30;")
+        tbl = QHBoxLayout(toolbar)
+        tbl.setContentsMargins(10, 0, 10, 0)
+
+        title = QLabel("TERMINAL (PowerShell)")
+        title.setStyleSheet("color: #888; font-size: 10px; font-weight: bold; letter-spacing: 1px;")
+        tbl.addWidget(title)
+        tbl.addStretch()
+
+        clear_btn = QPushButton("🧹 Clear")
+        clear_btn.setStyleSheet("background: transparent; color: #888; font-size: 10px; border: none;")
+        clear_btn.clicked.connect(self.clear)
+        tbl.addWidget(clear_btn)
+
+        layout.addWidget(toolbar)
+
+        # Output
+        self.output = QPlainTextEdit()
+        self.output.setReadOnly(True)
+        self.output.setUndoRedoEnabled(False)
+        self.output.setStyleSheet("""
+            QPlainTextEdit {
+                background-color: #0c0c0c;
+                color: #cccccc;
+                font-family: 'Consolas', 'Courier New', monospace;
+                font-size: 12px;
+                border: none;
+                padding: 10px;
+            }
+        """)
+        layout.addWidget(self.output)
+
+        # Input
+        self.input_field = QTextEdit()
+        self.input_field.setFixedHeight(35)
+        self.input_field.setPlaceholderText("Введіть команду...")
+        self.input_field.setStyleSheet("""
+            QTextEdit {
+                background-color: #1e1e1e;
+                color: #ffffff;
+                font-family: 'Consolas', 'Courier New', monospace;
+                font-size: 12px;
+                border: none;
+                padding: 8px 10px;
+            }
+        """)
+        self.input_field.installEventFilter(self)
+        layout.addWidget(self.input_field)
+
+    def start_shell(self):
+        if sys.platform == "win32":
+            self.process.start("powershell.exe", ["-NoLogo", "-NoExit"])
+        else:
+            self.process.start("/bin/bash")
+
+    def read_output(self):
+        data = self.process.readAllStandardOutput().data().decode("utf-8", errors="replace")
+        self.output.insertPlainText(data)
+        self.output.verticalScrollBar().setValue(self.output.verticalScrollBar().maximum())
+
+    def send_command(self):
+        cmd = self.input_field.toPlainText().strip()
+        if cmd:
+            self.process.write((cmd + "\n").encode())
+            self.input_field.clear()
+
+    def clear(self):
+        self.output.clear()
+
+    def handle_finished(self):
+        self.output.insertPlainText("\n--- Shell Process Finished ---\n")
+        self.start_shell()  # Restart
+
+    def eventFilter(self, obj, event):
+        if obj is self.input_field and event.type() == event.KeyPress:
+            if event.key() == Qt.Key_Return and not event.modifiers() & Qt.ShiftModifier:
+                self.send_command()
+                return True
+        return super().eventFilter(obj, event)
+
+
+class DiffDialog(QDialog):
+    """
+    Modern Side-by-Side Diff Viewer.
+    """
+
+    def __init__(self, old_text, new_text, filename="", parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(f"Перегляд змін: {filename}")
+        self.resize(1100, 700)
+        self.setup_ui(old_text, new_text)
+
+    def setup_ui(self, old_text, new_text):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setSpacing(15)
+
+        title = QLabel(f"📐 Порівняння змін")
+        title.setStyleSheet("font-size: 18px; font-weight: bold; color: #f1f5f9;")
+        layout.addWidget(title)
+
+        diff_area = QHBoxLayout()
+        diff_area.setSpacing(10)
+
+        # Old file (Left)
+        old_container = QVBoxLayout()
+        old_container.addWidget(QLabel("Оригінал (Current)"))
+        self.old_view = QPlainTextEdit(old_text)
+        self.old_view.setReadOnly(True)
+        self.old_view.setStyleSheet("background-color: #1a1b1e; color: #94a3b8;")
+        old_container.addWidget(self.old_view)
+        diff_area.addLayout(old_container)
+
+        # New file (Right)
+        new_container = QVBoxLayout()
+        new_container.addWidget(QLabel("Нова версія (Suggested)"))
+        self.new_view = QPlainTextEdit(new_text)
+        self.new_view.setReadOnly(True)
+        self.new_view.setStyleSheet("background-color: #0f1115; color: #f1f5f9; border: 1px solid #10b981;")
+        new_container.addWidget(self.new_view)
+        diff_area.addLayout(new_container)
+
+        layout.addLayout(diff_area)
+
+        # Buttons
+        btns = QHBoxLayout()
+        btns.addStretch()
+
+        cancel_btn = QPushButton("Скасувати")
+        cancel_btn.setFixedSize(120, 35)
+        cancel_btn.clicked.connect(self.reject)
+        btns.addWidget(cancel_btn)
+
+        self.apply_btn = QPushButton("Застосувати зміни")
+        self.apply_btn.setFixedSize(160, 35)
+        self.apply_btn.setStyleSheet("background-color: #10b981; color: white; font-weight: bold;")
+        self.apply_btn.clicked.connect(self.accept)
+        btns.addWidget(self.apply_btn)
+
+        layout.addLayout(btns)
+
+        self.setStyleSheet("""
+            QDialog { background-color: #0a0c10; color: #f1f5f9; }
+            QLabel { color: #94a3b8; font-size: 12px; font-weight: 600; }
+            QPushButton { background-color: #1a1d23; border: 1px solid #2d3139; border-radius: 6px; color: #f1f5f9; }
+            QPushButton:hover { background-color: #2d3139; }
+        """)
+
+
+class TestRunnerWidget(QFrame):
+    """
+    Panel for running and viewing unit tests.
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setStyleSheet("""
+            TestRunnerWidget {
+                background-color: #1e1e1e;
+                border-top: 1px solid #2d2d30;
+            }
+        """)
+        self.setup_ui()
+
+    def setup_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        # Toolbar
+        toolbar = QFrame()
+        toolbar.setFixedHeight(30)
+        toolbar.setStyleSheet("background-color: #252526; border-bottom: 1px solid #2d2d30;")
+        tbl = QHBoxLayout(toolbar)
+        tbl.setContentsMargins(10, 0, 10, 0)
+
+        title = QLabel("TEST RUNNER (PyTest)")
+        title.setStyleSheet("color: #cccccc; font-size: 10px; font-weight: bold; letter-spacing: 1px;")
+        tbl.addWidget(title)
+        tbl.addStretch()
+
+        self.run_btn = QPushButton("▶ Run All Tests")
+        self.run_btn.setStyleSheet("background: #0e639c; color: white; border-radius: 4px; font-size: 10px; padding: 2px 10px;")
+        tbl.addWidget(self.run_btn)
+
+        layout.addWidget(toolbar)
+
+        # Tests Output
+        self.output = QPlainTextEdit()
+        self.output.setReadOnly(True)
+        self.output.setPlaceholderText("Результати тестів з'являться тут після запуску...")
+        self.output.setStyleSheet("""
+            QPlainTextEdit {
+                background-color: #1e1e1e;
+                color: #d4d4d4;
+                font-family: 'Consolas', monospace;
+                font-size: 12px;
+                border: none;
+                padding: 10px;
+            }
+        """)
+        layout.addWidget(self.output)
+
+    def set_results(self, results):
+        self.output.setPlainText(results)

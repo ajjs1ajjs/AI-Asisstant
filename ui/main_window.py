@@ -8,6 +8,8 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
+import asyncio
+import psutil
 from dotenv import load_dotenv
 from PySide6.QtCore import Qt, QTimer, QMimeData, QThread, Signal
 from PySide6.QtGui import QColor, QDrag, QPainter, QPixmap, QKeySequence, QIcon, QCursor
@@ -33,6 +35,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
     QInputDialog,
+    QSystemTrayIcon,
+    QStyle,
 )
 
 from context_engine import ContextEngine
@@ -89,11 +93,10 @@ def find_editors():
 
 
 from ui.components import (
-    DownloadDialog,
-    ModelCard,
-    FileTree,
     TypingIndicator,
     ChatBubble,
+    TerminalWidget,
+    DiffDialog,
 )
 from threads.workers import AsyncChatWorker
 
@@ -203,6 +206,75 @@ class MainWindow(QMainWindow):
         if self.last_project and os.path.exists(self.last_project):
             self.load_project(self.last_project)
 
+        self.setup_tray_icon()
+        self.setup_stats_timer()
+
+    def setup_tray_icon(self):
+        """Налаштовує іконку в системному треї"""
+        self.tray_icon = QSystemTrayIcon(self)
+        
+        # Використовуємо стандартну іконку або нашу власну
+        icon_path = self._get_resource_path("icon.ico")
+        if os.path.exists(icon_path):
+            self.tray_icon.setIcon(QIcon(icon_path))
+        else:
+            self.tray_icon.setIcon(self.style().standardIcon(QStyle.SP_ComputerIcon))
+
+        # Меню трею
+        tray_menu = QMenu()
+        show_action = tray_menu.addAction("📂 Відкрити")
+        show_action.triggered.connect(self.showNormal)
+        show_action.triggered.connect(self.activateWindow)
+        
+        tray_menu.addSeparator()
+        
+        exit_action = tray_menu.addAction("🚪 Вихід")
+        exit_action.triggered.connect(QApplication.instance().quit)
+        
+        self.tray_icon.setContextMenu(tray_menu)
+        self.tray_icon.activated.connect(self._tray_icon_activated)
+        self.tray_icon.show()
+
+    def _tray_icon_activated(self, reason):
+        if reason == QSystemTrayIcon.Trigger:
+            if self.isVisible():
+                self.hide()
+            else:
+                self.showNormal()
+                self.activateWindow()
+
+    def setup_stats_timer(self):
+        """Таймер для оновлення статистики системи"""
+        self.stats_timer = QTimer(self)
+        self.stats_timer.timeout.connect(self.update_stats)
+        self.stats_timer.start(2000) # Оновлювати кожні 2 секунди
+
+    def update_stats(self):
+        """Оновлює показники CPU та RAM"""
+        cpu = psutil.cpu_percent()
+        ram = psutil.virtual_memory().percent
+        self.stats_label.setText(f"💻 CPU: {cpu}% | 🧠 RAM: {ram}%")
+        
+        # Колір залежно від навантаження
+        if cpu > 80 or ram > 80:
+            self.stats_label.setStyleSheet("color: #f44747; font-size: 10px;")
+        else:
+            self.stats_label.setStyleSheet("color: #888; font-size: 10px;")
+
+    def closeEvent(self, event):
+        """Обробка закриття вікна (мінімізація в трей)"""
+        if self.tray_icon.isVisible():
+            self.hide()
+            self.tray_icon.showMessage(
+                "AI Coding IDE",
+                "Програма працює у фоновому режимі",
+                QSystemTrayIcon.Information,
+                2000
+            )
+            event.ignore()
+        else:
+            event.accept()
+
     def setup_orchestrator(self):
         self.orchestrator = ModelOrchestrator()
         api_keys = self.settings.settings.api_keys
@@ -271,6 +343,87 @@ class MainWindow(QMainWindow):
         model_menu = menubar.addMenu("🧠 Модель")
         model_menu.addAction("🔄 Оновити список", self.refresh_models)
         model_menu.addAction("🗑️ Видалити модель", self.delete_current_model)
+        
+        tools_menu = menubar.addMenu("🛠️ Інструменти")
+        tools_menu.addAction("💻 Термінал", self.toggle_terminal)
+        tools_menu.addAction("🌐 Пошук в інтернеті", self.open_web_search)
+        tools_menu.addAction("📌 Закріпити поточний файл", self.toggle_pin_current_file)
+        tools_menu.addSeparator()
+        tools_menu.addAction("🦙 Ollama Manager", self.open_ollama_manager)
+        tools_menu.addAction("🧪 Test Runner", self.toggle_test_runner)
+
+    def toggle_test_runner(self):
+        self.test_runner_toggle = not self.test_runner_toggle
+        self.test_runner.setVisible(self.test_runner_toggle)
+
+    def open_ollama_manager(self):
+        try:
+            from ui.ollama_manager import OllamaManagerDialog
+            dlg = OllamaManagerDialog(self)
+            dlg.exec()
+        except Exception as e:
+            QMessageBox.critical(self, "Ollama Error", f"Не вдалося відкрити Ollama Manager: {e}")
+
+    def take_screenshot(self):
+        self._run_tool_directly("capture_screen", {})
+
+    def toggle_voice_input(self):
+        """Просте голосове введення через SpeechRecognition"""
+        self.add_chat_bubble("🎙️ Слухаю (скажіть щось)...", "system")
+        
+        async def listen():
+            try:
+                import speech_recognition as sr
+                r = sr.Recognizer()
+                with sr.Microphone() as source:
+                    r.adjust_for_ambient_noise(source, duration=1)
+                    audio = r.listen(source, timeout=10)
+                
+                text = r.recognize_google(audio, language="uk-UA")
+                self.chat_input.setText(text)
+                self.add_chat_bubble(f"👂 Розпізнано: {text}", "system")
+            except sr.WaitTimeoutError:
+                self.add_chat_bubble("⌛ Тайм-аут: голос не виявлено.", "system")
+            except Exception as e:
+                self.add_chat_bubble(f"❌ Помилка розпізнавання: {e}", "system")
+                
+        asyncio.create_task(listen())
+
+    def toggle_pin_current_file(self):
+        if not self.current_file:
+            return
+            
+        if self.current_file in self.pinned_files:
+            self.pinned_files.remove(self.current_file)
+            self.add_chat_bubble(f"📍 Файл відкріплено: {os.path.basename(self.current_file)}", "system")
+        else:
+            self.pinned_files.add(self.current_file)
+            self.add_chat_bubble(f"📌 Файл закріплено в контексті: {os.path.basename(self.current_file)}", "system")
+
+    def toggle_terminal(self):
+        self.terminal_toggle = not self.terminal_toggle
+        self.terminal.setVisible(self.terminal_toggle)
+
+    def open_web_search(self):
+        query, ok = QInputDialog.getText(self, "Web Search", "Введіть запит:")
+        if ok and query:
+            self.add_chat_bubble(f"Шукаю в інтернеті: {query}", "user")
+            self._run_tool_directly("web_search", {"query": query})
+
+    def _run_tool_directly(self, tool_name, params):
+        # Logic to skip orchestrator and run tool directly (useful for manual search)
+        self.work_status.setText(f"Виконую {tool_name}...")
+        self.typing.start()
+        
+        async def run():
+            if hasattr(self.agent_tools, tool_name):
+                func = getattr(self.agent_tools, tool_name)
+                res = await func(**params) if asyncio.iscoroutinefunction(func) else func(**params)
+                self.add_chat_bubble(res, "assistant")
+            self.typing.stop()
+            self.work_status.setText("Готовий")
+            
+        asyncio.create_task(run())
 
     def open_settings(self):
         dlg = SettingsDialog(self)
@@ -657,6 +810,10 @@ class MainWindow(QMainWindow):
 
         tl.addWidget(status_container)
 
+        self.stats_label = QLabel("💻 CPU: 0% | 🧠 RAM: 0%")
+        self.stats_label.setStyleSheet("color: #888; font-size: 10px; margin-left: 10px;")
+        tl.addWidget(self.stats_label)
+
         git_btn = QPushButton("Git ▼")
         git_btn.setFixedSize(60, 32)
         git_btn.setStyleSheet("""
@@ -670,6 +827,20 @@ class MainWindow(QMainWindow):
         """)
         git_btn.clicked.connect(self.git_menu)
         tl.addWidget(git_btn)
+        
+        # New: Top-level buttons for Voice/Vision (moved to top-right for visibility)
+        vl_btn = QPushButton("🎤")
+        vl_btn.setFixedSize(32, 32)
+        vl_btn.setStyleSheet("background-color: #3e3e3e; border-radius: 4px;")
+        vl_btn.clicked.connect(self.toggle_voice_input)
+        tl.addWidget(vl_btn)
+        
+        scr_btn = QPushButton("📸")
+        scr_btn.setFixedSize(32, 32)
+        scr_btn.setStyleSheet("background-color: #3e3e3e; border-radius: 4px;")
+        scr_btn.clicked.connect(self.take_screenshot)
+        tl.addWidget(scr_btn)
+        
         rl.addWidget(top)
 
         # Chat Area
@@ -689,6 +860,36 @@ class MainWindow(QMainWindow):
 
         self.chat_scroll.setWidget(self.chat_widget)
         rl.addWidget(self.chat_scroll, 1)
+
+        # Terminal
+        self.terminal = TerminalWidget()
+        self.terminal.setMinimumHeight(120)
+        self.terminal.setMaximumHeight(400)
+        self.terminal_toggle = False
+        self.terminal.hide()
+        self.terminal.error_detected.connect(self.handle_terminal_error)
+        rl.addWidget(self.terminal)
+
+        # Test Runner (New)
+        from ui.components import TestRunnerWidget
+        self.test_runner = TestRunnerWidget()
+        self.test_runner.hide()
+        self.test_runner_toggle = False
+        self.test_runner.run_btn.clicked.connect(self.run_project_tests)
+        rl.addWidget(self.test_runner)
+
+    def run_project_tests(self):
+        self.add_chat_bubble("🧪 Запускаю тести проекту...", "system")
+        self._run_tool_directly("run_tests", {})
+        # Note: We should ideally update the TestRunnerWidget output too
+        # but for now _run_tool_directly adds it to chat. 
+        # I'll update it to also show in the widget.
+
+    def _update_test_results(self, results):
+        self.test_runner.set_results(results)
+
+        # Context Pinning State
+        self.pinned_files = set()
 
         # Typing
         self.typing = TypingIndicator()
@@ -793,10 +994,84 @@ class MainWindow(QMainWindow):
         if not self.last_project or not os.path.exists(self.last_project):
             self.load_project(os.getcwd())
 
+    def handle_terminal_error(self, error_log):
+        """Автоматично реагує на помилку в терміналі"""
+        if not error_log.strip():
+            return
+            
+        self.add_chat_bubble(f"🚨 Виявлено помилку в терміналі:\n```\n{error_log}\n```\nАналізую причину та шукаю виправлення...", "system")
+        
+        # Відправити запит до ШІ з логом помилки
+        prompt = f"В терміналі сталася помилка. Ось лог:\n{error_log}\nБудь ласка, проаналізуй його та запропонуй виправлення."
+        self.chat_input.setText(prompt)
+        self.send_message()
+
     def add_chat_bubble(self, text, role="assistant"):
         """Помічник для додавання нової бульбашки в чат"""
         bubble = ChatBubble(text, role)
         self.chat_layout.insertWidget(self.chat_layout.count() - 1, bubble)
+        
+        # Перевірити на наявність коду для Auto-Apply
+        if role == "assistant" and "```" in text:
+            self._add_apply_button(bubble, text)
+
+    def _add_apply_button(self, bubble, text):
+        """Додати кнопку 'Застосувати зміни' до бульбашки з кодом"""
+        btn = QPushButton("📐 Застосувати зміни")
+        btn.setFixedSize(160, 30)
+        btn.setStyleSheet("""
+            QPushButton {
+                background-color: #10b981;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                font-size: 11px;
+                font-weight: bold;
+                margin-top: 5px;
+            }
+            QPushButton:hover { background-color: #059669; }
+        """)
+        
+        # Знайти блоки коду
+        import re
+        code_blocks = re.findall(r"```(?:\w+)?\n(.*?)\n```", text, re.DOTALL)
+        if not code_blocks:
+            return
+
+        def on_click():
+            self.apply_changes(code_blocks[0])
+
+        btn.clicked.connect(on_click)
+        bubble.layout().addWidget(btn, 0, Qt.AlignLeft)
+
+    def apply_changes(self, new_code):
+        """Відкрити DiffDialog для застосування змін"""
+        # Авто-визначення файлу (спрощене)
+        target_file = self.current_file
+        if not target_file and self.project_path:
+            # Спробуємо знайти назву файлу в тексті перед кодом
+            # (Це можна покращити)
+            target_file = os.path.join(self.project_path, "main.py") # Fallback
+            
+        if not target_file or not os.path.exists(target_file):
+            target_file, _ = QFileDialog.getOpenFileName(self, "Оберіть файл для застосування змін", self.project_path or "")
+            
+        if not target_file:
+            return
+
+        try:
+            with open(target_file, "r", encoding="utf-8") as f:
+                old_code = f.read()
+            
+            dlg = DiffDialog(old_code, new_code, os.path.basename(target_file), self)
+            if dlg.exec():
+                with open(target_file, "w", encoding="utf-8") as f:
+                    f.write(new_code)
+                self.add_chat_bubble(f"✅ Зміни успішно застосовано до {os.path.basename(target_file)}", "system")
+                self.refresh_files()
+        except Exception as e:
+            QMessageBox.critical(self, "Помилка", f"Не вдалося застосувати зміни: {e}")
+
 
         # Автоматична прокрутка вниз
         QTimer.singleShot(

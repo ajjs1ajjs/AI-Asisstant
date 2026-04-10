@@ -23,7 +23,9 @@ python-dotenv>=1.0.0
 
 # Utilities
 typing-extensions>=4.8.0
-
-# Optional: For better performance
-# accelerate>=0.20.0  # PyTorch acceleration
-# torch>=2.0.0        # PyTorch (for sentence-transformers)
+duckduckgo-search>=6.0.0
+SpeechRecognition>=3.10.0
+pyscreenshot>=3.1
+httpx>=0.25.0
+# PyAudio is required for SpeechRecognition but might need manual wheels on Windows
+# PyAudio>=0.2.13

@@ -378,13 +378,6 @@ class ContextEngine:
             print(f"⚠️ Помилка пошуку: {e}")
             return []
 
-        try:
-            query_embedding = self.get_embedding(query)
-            from faiss import normalize_L2
-
-            normalize_L2(query_embedding)
-
-            k = min(k, self.index.ntotal)
             if k == 0:
                 return []
 

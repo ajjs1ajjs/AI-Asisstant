@@ -153,6 +153,92 @@ class AgentTools:
     def __init__(self, root_dir: str = "", safe_mode: bool = True):
         self.root_dir = root_dir if root_dir else os.getcwd()
         self.safe_mode = safe_mode
+        self.plugins = {}
+        self.load_plugins()
+
+    def load_plugins(self):
+        """Discover and load external tools from plugins/ directory"""
+        plugins_dir = os.path.join(self.root_dir, "plugins")
+        if not os.path.exists(plugins_dir):
+            return
+
+        import importlib.util
+
+        for file in os.listdir(plugins_dir):
+            if file.endswith(".py") and file != "__init__.py":
+                plugin_name = file[:-3]
+                file_path = os.path.join(plugins_dir, file)
+                try:
+                    spec = importlib.util.spec_from_file_location(plugin_name, file_path)
+                    module = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(module)
+
+                    # Look for register_tools function
+                    if hasattr(module, "register_tools"):
+                        new_tools = module.register_tools()
+                        for name, func in new_tools.items():
+                            setattr(self, name, func)
+                            self.plugins[name] = plugin_name
+                            logger.info(f"🧩 Plugin tool registered: {name}")
+                except Exception as e:
+                    logger.error(f"❌ Error loading plugin {plugin_name}: {e}")
+
+    def web_search(self, query: str) -> str:
+        """Search the web for up-to-date information and documentation"""
+        try:
+            from duckduckgo_search import DDGS
+
+            results = []
+            with DDGS() as ddgs:
+                for r in ddgs.text(query, max_results=5):
+                    results.append(
+                        f"🌐 {r['title']}\n🔗 {r['href']}\n📝 {r['body']}\n{'-'*40}"
+                    )
+
+            if not results:
+                return "No results found for your query."
+
+            return "\n".join(results)
+        except ImportError:
+            return "❌ Error: 'duckduckgo_search' library not installed. Please run 'pip install duckduckgo-search'."
+        except Exception as e:
+            return f"❌ Web search error: {str(e)}"
+
+    def capture_screen(self) -> str:
+        """Capture a screenshot of the current screen for visual analysis"""
+        try:
+            import pyscreenshot as ImageGrab
+            from datetime import datetime
+            
+            screenshots_dir = os.path.join(self.root_dir, "screenshots")
+            os.makedirs(screenshots_dir, exist_ok=True)
+            
+            filename = f"screenshot_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+            filepath = os.path.join(screenshots_dir, filename)
+            
+            im = ImageGrab.grab()
+            im.save(filepath)
+            
+            return f"📸 Скріншот збережено: {filepath}\nТепер я можу проаналізувати це зображення."
+        except ImportError:
+            return "❌ Помилка: Бібліотека 'pyscreenshot' не встановлена. Виконайте 'pip install pyscreenshot Pillow'."
+        except Exception as e:
+            return f"❌ Помилка при знятті скріншоту: {str(e)}"
+
+    def run_tests(self, path: str = "") -> str:
+        """Run project tests using pytest and return the results"""
+        try:
+            import subprocess
+            target = path if path else self.root_dir
+            result = subprocess.run(
+                ["pytest", target, "-v"],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            return f"🧪 Результати тестів:\n\n{result.stdout}\n{result.stderr}"
+        except Exception as e:
+            return f"❌ Помилка при запуску тестів: {str(e)}"
 
     def read_file(self, path: str) -> str:
         full_path = os.path.join(self.root_dir, path)
@@ -275,6 +361,85 @@ class AgentTools:
             "is_dir": os.path.isdir(full_path),
         }
 
+    def analyze_project(self) -> str:
+        """Provide a comprehensive summary of the project codebase"""
+        if not self.root_dir:
+            return "No project directory"
+
+        analysis = []
+        analysis.append(f"📁 Project Analysis: {self.root_dir}")
+        analysis.append("=" * 60)
+
+        total_files = 0
+        total_lines = 0
+        extensions = {}
+        ignored_dirs = {
+            ".git",
+            "__pycache__",
+            "node_modules",
+            "venv",
+            "dist",
+            "build",
+            ".idea",
+            ".vscode",
+        }
+
+        for root, dirs, files in os.walk(self.root_dir):
+            dirs[:] = [d for d in dirs if d not in ignored_dirs]
+            for file in files:
+                ext = os.path.splitext(file)[1].lower()
+                if not ext:
+                    ext = "no-ext"
+                extensions[ext] = extensions.get(ext, 0) + 1
+                total_files += 1
+                filepath = os.path.join(root, file)
+                try:
+                    # Only try to count lines for text-based files
+                    if ext in {
+                        ".py",
+                        ".js",
+                        ".ts",
+                        ".html",
+                        ".css",
+                        ".md",
+                        ".txt",
+                        ".json",
+                        ".yml",
+                        ".yaml",
+                        ".spec",
+                        ".bat",
+                        ".sh",
+                    }:
+                        with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
+                            total_lines += len(f.readlines())
+                except (OSError, UnicodeDecodeError):
+                    pass
+
+        analysis.append(f"📊 Total Files: {total_files}")
+        analysis.append(f"📝 Estimated Lines of Code (text files): {total_lines:,}")
+        
+        # Sort and show top extensions
+        sorted_exts = sorted(extensions.items(), key=lambda x: x[1], reverse=True)
+        analysis.append("\n📄 File Distribution:")
+        for ext, count in sorted_exts[:10]:
+            analysis.append(f"  - {ext}: {count}")
+
+        # Structure Overview (top level and one level deep)
+        analysis.append("\n📂 Structure Overview:")
+        for entry in self.list_files("."):
+            analysis.append(f"  {'📁' if entry['is_dir'] else '📄'} {entry['name']}")
+            if entry['is_dir'] and entry['name'] not in ignored_dirs:
+                try:
+                    sub_entries = self.list_files(entry['name'])
+                    for sub in sub_entries[:5]: # Show max 5 sub-items
+                        analysis.append(f"    {'📁' if sub['is_dir'] else '📄'} {sub['name']}")
+                    if len(sub_entries) > 5:
+                        analysis.append(f"    ... and {len(sub_entries) - 5} more")
+                except:
+                    pass
+
+        return "\n".join(analysis)
+
     async def read_file_async(self, path: str) -> str:
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, self.read_file, path)
@@ -292,6 +457,10 @@ class AgentTools:
     ) -> list:
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, self.search_code, query, extensions)
+
+    async def analyze_project_async(self) -> str:
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, self.analyze_project)
 
     async def run_command_async(self, cmd: str, timeout: int = 30) -> Dict[str, Any]:
         try:
@@ -388,6 +557,35 @@ TOOL_DEFINITIONS = [
                 }
             },
             "required": ["path"],
+        },
+    },
+    {
+        "name": "analyze_project",
+        "description": "Provide a high-level summary of the project codebase, including file counts, lines of code, and structure overview",
+        "parameters": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    },
+    {
+        "name": "capture_screen",
+        "description": "Capture a screenshot of the current screen for visual analysis",
+        "parameters": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    },
+    {
+        "name": "run_tests",
+        "description": "Run project tests and return the results",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Path to test folder or file"}
+            },
+            "required": [],
         },
     },
 ]
