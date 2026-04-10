@@ -11,17 +11,24 @@ def get_resource_path(filename):
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
 
 def main():
+    print("DEBUG: Creating QApplication...")
     app = QApplication.instance() or QApplication(sys.argv)
     app.setStyle("Fusion")
+    print("DEBUG: QApplication created.")
     
     # Завантаження стилів
     style_path = get_resource_path("style.qss")
+    print(f"DEBUG: Loading style from {style_path}")
     if os.path.exists(style_path):
         with open(style_path, "r", encoding="utf-8") as f:
             app.setStyleSheet(f.read())
+            print("DEBUG: Stylesheet loaded.")
             
+    print("DEBUG: Creating MainWindow...")
     w = MainWindow()
+    print("DEBUG: MainWindow created.")
     w.show()
+    print("DEBUG: Showing MainWindow. Executing app...")
     sys.exit(app.exec())
 
 if __name__ == "__main__":

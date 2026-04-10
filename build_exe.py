@@ -1,69 +1,48 @@
 import os
-import subprocess
-import sys
+import shutil
+import PyInstaller.__main__
 
 def build():
-    print("Starting AI Coding IDE v6.0 EXE Build Process...")
+    print("🚀 Збираю швидкий портативний білд (режим папки)...")
     
-    # 1. Clean previous builds
-    if os.path.exists("build"):
-        import shutil
-        shutil.rmtree("build")
-    if os.path.exists("dist"):
-        import shutil
-        shutil.rmtree("dist")
+    # Очищення
+    if os.path.exists("dist"): shutil.rmtree("dist")
+    if os.path.exists("build"): shutil.rmtree("build")
 
-    # 2. Define PyInstaller command
-    cmd = [
-        sys.executable, "-m", "PyInstaller",
-        "--noconfirm",
-        "--onedir",
-        "--windowed",
-        "--icon=icon.ico",
-        "--name=AI_IDE_v6.0",
-        
-        # Paths
-        "--paths=.",
-        
-        # Add Data
-        "--add-data=ui/;ui/",
-        "--add-data=core/;core/",
-        "--add-data=plugins/;plugins/",
-        "--add-data=style.qss;.",
-        
-        # Hidden Imports (Root Modules)
-        "--hidden-import=agent_tools",
-        "--hidden-import=git_integration",
-        "--hidden-import=orchestrator",
-        "--hidden-import=local_engine",
-        "--hidden-import=model_manager",
-        "--hidden-import=context_engine",
-        "--hidden-import=autocomplete",
-        "--hidden-import=settings",
-        
-        # Hidden Imports (Wave 6)
-        "--hidden-import=fastapi",
-        "--hidden-import=uvicorn",
-        "--hidden-import=zeroconf",
-        "--hidden-import=pandas",
-        "--hidden-import=matplotlib",
-        "--hidden-import=pyscreenshot",
-        "--hidden-import=speech_recognition",
-        "--hidden-import=deep_translator",
-        
-        # Main file
-        "main.py"
+    # Збираємо всі .py файли з кореня та підпапок для впевненості
+    # Це вирішить проблему ModuleNotFoundError
+    datas = [
+        ('ui/', 'ui/'),
+        ('core/', 'core/'),
+        ('plugins/', 'plugins/'),
+        ('threads/', 'threads/'),
+        ('style.qss', '.'),
+        ('icon.ico', '.'),
     ]
-
-    print(f"Executing: {' '.join(cmd)}")
     
-    try:
-        subprocess.check_call(cmd)
-        print("\nBuild Successful! Check the 'dist/AI_IDE_v6.0' directory.")
-    except Exception as e:
-        print(f"\nBuild Failed: {e}")
+    # Додаємо всі .py файли з кореня
+    for f in os.listdir('.'):
+        if f.endswith('.py') and f != 'build_exe.py':
+            datas.append((f, '.'))
+
+    params = [
+        'main.py',
+        '--noconfirm',
+        '--onedir',          # Швидкий запуск
+        '--windowed',
+        '--icon=icon.ico',
+        '--name=AI_IDE_v6.0',
+        '--collect-all=llama_cpp',
+        '--collect-all=faiss',
+        '--collect-all=sentence_transformers',
+    ]
+    
+    # Додаємо всі дані
+    for src, dst in datas:
+        params.append(f'--add-data={src};{dst}')
+    
+    PyInstaller.__main__.run(params)
+    print("✅ Білд готовий у папці 'dist/AI_IDE_v6.0'")
 
 if __name__ == "__main__":
-    # Ensure recursion limit is high for large apps
-    sys.setrecursionlimit(5000)
     build()

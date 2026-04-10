@@ -14,7 +14,12 @@ class LocalInference:
 
     def load_model(self, model_path, n_ctx=8192):
         try:
-            from llama_cpp import Llama
+            try:
+    from llama_cpp import Llama
+    LLAMA_AVAILABLE = True
+except ImportError:
+    LLAMA_AVAILABLE = False
+    print("[LocalEngine] Warning: llama_cpp not found.")
 
             for n in ["llama_cpp", "llamacpp", "llama"]:
                 logging.getLogger(n).setLevel(logging.CRITICAL)

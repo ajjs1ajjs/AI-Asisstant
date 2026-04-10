@@ -5,6 +5,7 @@ import os
 import subprocess
 import sys
 import threading
+import traceback
 from datetime import datetime
 from pathlib import Path
 
@@ -217,8 +218,10 @@ class ThoughtBubble(QFrame):
 
 
 class DownloadDialog(QDialog):
-    def __init__(self, model, parent=None):
+    def __init__(self, model, model_manager, parent=None):
         super().__init__(parent)
+        self.model = model
+        self.model_manager = model_manager
         self.setWindowTitle(f"Завантаження {model['name']}")
         self.setModal(True)
         self.setFixedSize(380, 140)
@@ -268,8 +271,22 @@ class DownloadDialog(QDialog):
         self.cancel_btn.clicked.connect(self.reject)
         layout.addWidget(self.cancel_btn, 0, Qt.AlignRight)
 
-    def update_progress(self, percent):
+        threading.Thread(target=self.start_download, daemon=True).start()
+
+    def start_download(self):
+        try:
+            print(f"DEBUG: Starting download for {self.model.get('name')}")
+            # Передаємо callback для прогресу
+            self.model_manager.download_model(self.model, progress_callback=self.update_progress)
+            QTimer.singleShot(0, self.accept)
+        except Exception as e:
+            traceback.print_exc()
+            self.label.setText(f"Помилка: {str(e)}")
+            self.label.setStyleSheet("color: #ef4444; font-size: 10px;")
+
+    def update_progress(self, percent, downloaded, total):
         self.progress.setValue(int(percent))
+        self.label.setText(f"Завантажено {int(downloaded/(1024*1024))}MB з {int(total/(1024*1024))}MB")
 
 
 class ModelCard(QFrame):
@@ -518,9 +535,6 @@ class FileTree(QTreeWidget):
         self.refresh_requested.emit()
 
 
-            dot.setStyleSheet(f"color: {color}; {scale}")
-
-
 class TypingIndicator(QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -691,7 +705,7 @@ class TerminalWidget(QFrame):
         self.start_shell()  # Restart
 
     def eventFilter(self, obj, event):
-        if obj is self.input_field and event.type() == event.KeyPress:
+        if obj is self.input_field and event.type() == 6:
             if event.key() == Qt.Key_Return and not event.modifiers() & Qt.ShiftModifier:
                 self.send_command()
                 return True

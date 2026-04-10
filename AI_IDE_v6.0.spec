@@ -1,12 +1,23 @@
 # -*- mode: python ; coding: utf-8 -*-
+from PyInstaller.utils.hooks import collect_all
+
+datas = [('ui/', 'ui/'), ('core/', 'core/'), ('plugins/', 'plugins/'), ('threads/', 'threads/'), ('style.qss', '.'), ('icon.ico', '.'), ('agent_tools.py', '.'), ('autocomplete.py', '.'), ('context_engine.py', '.'), ('git_dialog.py', '.'), ('git_integration.py', '.'), ('hook-runtime.py', '.'), ('local_engine.py', '.'), ('main.py', '.'), ('model_benchmark.py', '.'), ('model_manager.py', '.'), ('orchestrator.py', '.'), ('settings.py', '.'), ('settings_dialog.py', '.')]
+binaries = []
+hiddenimports = []
+tmp_ret = collect_all('llama_cpp')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+tmp_ret = collect_all('faiss')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+tmp_ret = collect_all('sentence_transformers')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
 
 a = Analysis(
     ['main.py'],
-    pathex=['.'],
-    binaries=[],
-    datas=[('ui/', 'ui/'), ('core/', 'core/'), ('plugins/', 'plugins/'), ('style.qss', '.')],
-    hiddenimports=['agent_tools', 'git_integration', 'orchestrator', 'local_engine', 'model_manager', 'context_engine', 'autocomplete', 'settings', 'fastapi', 'uvicorn', 'zeroconf', 'pandas', 'matplotlib', 'pyscreenshot', 'speech_recognition', 'deep_translator'],
+    pathex=[],
+    binaries=binaries,
+    datas=datas,
+    hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

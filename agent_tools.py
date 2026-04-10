@@ -179,9 +179,10 @@ class AgentTools:
                         for name, func in new_tools.items():
                             setattr(self, name, func)
                             self.plugins[name] = plugin_name
-                            logger.info(f"🧩 Plugin tool registered: {name}")
+                            # logger.info(f"🧩 Plugin tool registered: {name}")
                 except Exception as e:
-                    logger.error(f"❌ Error loading plugin {plugin_name}: {e}")
+                    # logger.error(f"❌ Error loading plugin {plugin_name}: {e}")
+                    pass
 
     def web_search(self, query: str) -> str:
         """Search the web for up-to-date information and documentation"""
@@ -424,17 +425,17 @@ class AgentTools:
         return sorted(items, key=lambda x: (not x["is_dir"], x["name"]))
 
     def get_file_info(self, path: str) -> Dict[str, Any]:
-        full_path = os.path.join(self.root_dir, path)
-        if not os.path.exists(full_path):
+        try:
+            full_path = os.path.join(self.root_dir, path)
+            stat_info = os.stat(full_path)
+            return {
+                "size": stat_info.st_size,
+                "modified": stat_info.st_mtime,
+                "created": stat_info.st_ctime,
+                "is_dir": os.path.isdir(full_path),
+            }
+        except Exception:
             return {}
-
-        stat = os.stat(full_path)
-        return {
-            "size": stat.st_size,
-            "modified": stat.st_mtime,
-            "created": stat.st_ctime,
-            "is_dir": os.path.isdir(full_path),
-        }
 
     def analyze_project(self) -> str:
         """Provide a comprehensive summary of the project codebase"""
@@ -681,6 +682,7 @@ TOOL_DEFINITIONS = [
             "properties": {},
             "required": [],
         },
+    },
     {
         "name": "execute_sql",
         "description": "Execute a SQL query on a local SQLite database",
@@ -692,6 +694,7 @@ TOOL_DEFINITIONS = [
             },
             "required": ["db_path", "sql"],
         },
+    },
     {
         "name": "predictive_audit",
         "description": "AI-based predictive analysis of performance and logic bottlenecks in a specific file",
@@ -702,6 +705,7 @@ TOOL_DEFINITIONS = [
             },
             "required": ["target_file"],
         },
+    },
     {
         "name": "convert_vision_to_code",
         "description": "Generate UI code from a screenshot",
