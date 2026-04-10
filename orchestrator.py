@@ -402,6 +402,7 @@ class ModelOrchestrator:
             "tester": "Ти - QA Automation Engineer. Твоя задача: написати unittest або pytest для перевірки коду на помилки.",
             "reviewer": "Ти - Security Auditor. Твоя задача: перевірити код на вразливості та знайти логічні помилки."
         }
+        self.remote_nodes = [] # List of IPs/URLs
 
     def add_provider(self, name: str, provider: BaseProvider):
         self.providers[name] = provider
@@ -579,6 +580,11 @@ class ModelOrchestrator:
 
         # Run all roles in parallel
         tasks = [run_role(role, prompt) for role, prompt in self.swarm_roles.items()]
-        results = await asyncio.gather(*tasks)
-        
         return "\n".join(results)
+
+    async def remote_request(self, node_url: str, messages: list):
+        """Send inference request to a remote slave node"""
+        import httpx
+        async with httpx.AsyncClient() as client:
+            res = await client.post(f"http://{node_url}:8080/inference", json={"messages": messages})
+            return res.json().get("response")

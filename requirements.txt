@@ -30,5 +30,10 @@ httpx>=0.25.0
 deep-translator>=1.11.4
 graphviz>=0.20.1
 networkx>=3.1
+fastapi>=0.104.0
+uvicorn>=0.23.2
+zeroconf>=0.112.0
+pandas>=2.1.0
+matplotlib>=3.8.0
 # PyAudio is required for SpeechRecognition but might need manual wheels on Windows
 # PyAudio>=0.2.13

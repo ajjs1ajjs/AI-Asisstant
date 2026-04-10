@@ -980,6 +980,11 @@ class JupyterViewerWidget(QFrame):
         self.time_machine = TimeMachineWidget()
         self.bottom_tabs.addTab(self.time_machine, "⌛ Time Machine")
 
+        # 6. Data Analyst
+        from ui.analyst import DataAnalystWidget
+        self.data_analyst = DataAnalystWidget()
+        self.bottom_tabs.addTab(self.data_analyst, "📈 Data Analyst")
+
         rl.addWidget(self.bottom_tabs)
         
         # Connect graph to file changes logic
@@ -2261,3 +2266,30 @@ class JupyterViewerWidget(QFrame):
             success, msg = git.checkout_branch(commit_hash)
             self.add_chat_bubble(f"🚀 Подорож у часі: {msg}", "system")
             self.refresh_files()
+
+    def toggle_voice_input(self):
+        """Voice-to-Code mapping (v6.0)"""
+        msg = "Створи папку 'backend' та файл 'api.py'" # Mock for demonstration
+        self.add_chat_bubble(f"🎤 Голос: {msg}", "user")
+        
+        # Simple Galactic mapping
+        if "створи папку" in msg.lower():
+            import re
+            match = re.search(r"'(.*?)'", msg)
+            if match:
+                folder = match.group(1)
+                self.agent_tools.create_directory(folder)
+                self.add_chat_bubble(f"✅ Голосова команда: Створено папку {folder}", "system")
+        self.send()
+
+    def take_screenshot(self):
+        """Take screenshot for Vision Analysis"""
+        try:
+            import pyscreenshot as ImageGrab
+            pix = ImageGrab.grab()
+            path = os.path.join(self.project_path, "latest_screenshot.png")
+            pix.save(path)
+            self.add_chat_bubble(f"📸 Скріншот збережено: {path}", "system")
+            self._send_to_ai(f"Проаналізуй цей дизайн та конвертуй його у код: {path}")
+        except Exception as e:
+            self.add_chat_bubble(f"❌ Помилка скріншоту: {e}", "system")
