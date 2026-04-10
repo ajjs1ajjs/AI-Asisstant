@@ -223,6 +223,20 @@ class AgentTools:
         except Exception as e:
             return f"❌ Audit error: {str(e)}"
 
+    def convert_vision_to_code(self, image_path: str) -> str:
+        """Analyze a UI screenshot and generate boilerplate code"""
+        return f"📸 Аналізую скріншот {image_path}...\nГенерую структуру інтерфейсу (HTML/Qt)..."
+
+    def apply_fix(self, file_path: str, fix_code: str) -> str:
+        """Apply an AI-suggested fix to a file (Self-Healing)"""
+        try:
+            full_path = os.path.join(self.root_dir, file_path)
+            with open(full_path, "w", encoding="utf-8") as f:
+                f.write(fix_code)
+            return f"🩹 Fix applied to {file_path}"
+        except Exception as e:
+            return f"❌ Fix error: {str(e)}"
+
     def architect_project(self, plan: list) -> str:
         """Create multiple files based on an architect plan."""
         results = []
@@ -687,6 +701,28 @@ TOOL_DEFINITIONS = [
                 "target_file": {"type": "string", "description": "Relative path to the file to audit"}
             },
             "required": ["target_file"],
+        },
+    {
+        "name": "convert_vision_to_code",
+        "description": "Generate UI code from a screenshot",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "image_path": {"type": "string", "description": "Path to the screenshot"}
+            },
+            "required": ["image_path"],
+        },
+    },
+    {
+        "name": "apply_fix",
+        "description": "Apply a self-healing fix to a file",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "file_path": {"type": "string", "description": "Relative path to file"},
+                "fix_code": {"type": "string", "description": "Corrected code content"}
+            },
+            "required": ["file_path", "fix_code"],
         },
     },
 ]

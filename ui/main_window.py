@@ -975,12 +975,22 @@ class JupyterViewerWidget(QFrame):
         self.kg_viewer = KnowledgeGraphWidget()
         self.bottom_tabs.addTab(self.kg_viewer, "📊 Knowledge Graph")
 
+        # 5. Project Time Machine
+        from ui.time_machine import TimeMachineWidget
+        self.time_machine = TimeMachineWidget()
+        self.bottom_tabs.addTab(self.time_machine, "⌛ Time Machine")
+
         rl.addWidget(self.bottom_tabs)
         
         # Connect graph to file changes logic
         # (Assuming project_path is set later)
         if self.project_path:
             self.kg_viewer.update_graph(self.project_path)
+            self.refresh_time_machine()
+
+        # Connections
+        self.time_machine.refresh_btn.clicked.connect(self.refresh_time_machine)
+        self.time_machine.travel_btn.clicked.connect(self.travel_time_machine)
 
     def run_project_tests(self):
         self.add_chat_bubble("🧪 Запускаю тести проекту...", "system")
@@ -2224,3 +2234,30 @@ class JupyterViewerWidget(QFrame):
             self.current_file = path
         except Exception as e:
             self.add_chat_bubble(f"✗ Помилка: {e}", "system")
+    def handle_terminal_error(self, error_msg):
+        from PySide6.QtWidgets import QMessageBox
+        msg = f"⚠️ Виявлено помилку в терміналі:\n{error_msg}\n\nБажаєте, щоб ШІ спробував виправити це?"
+        ret = QMessageBox.question(self, "Self-Healing AI", msg, QMessageBox.Yes | QMessageBox.No)
+        if ret == QMessageBox.Yes:
+            self.add_chat_bubble(f"🩹 Аналізую загрозу: {error_msg}", "user")
+            self._send_to_ai(f"Виправ цю помилку в терміналі:\n{error_msg}")
+
+    def refresh_time_machine(self):
+        if not self.project_path: return
+        from git_integration import get_git
+        git = get_git(self.project_path)
+        commits = git.get_log(20)
+        self.time_machine.update_history(commits)
+
+    def travel_time_machine(self):
+        selected = self.time_machine.commit_list.currentItem()
+        if not selected: return
+        commit_hash = selected.text().split("]")[0][1:]
+        from PySide6.QtWidgets import QMessageBox
+        msg = f"Ви впевнені, що хочете переключитися на коміт {commit_hash}?\nЦе змінить стан файлів у проекті."
+        if QMessageBox.question(self, "Time Travel", msg) == QMessageBox.Yes:
+            from git_integration import get_git
+            git = get_git(self.project_path)
+            success, msg = git.checkout_branch(commit_hash)
+            self.add_chat_bubble(f"🚀 Подорож у часі: {msg}", "system")
+            self.refresh_files()

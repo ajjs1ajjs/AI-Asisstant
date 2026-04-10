@@ -37,8 +37,9 @@ class LocalModelManager:
     # Дзеркала для завантаження
     MIRRORS = {
         "huggingface": "https://huggingface.co",
+        "hf-mirror": "https://hf-mirror.com",
         "modelscope": "https://modelscope.cn",
-        "ghproxy": "https://ghproxy.com",  # Проксі для HuggingFace
+        "ghproxy": "https://ghproxy.com",
     }
 
     def __init__(self, models_dir: str = None, preferred_mirror: str = "huggingface"):
@@ -374,6 +375,19 @@ class LocalModelManager:
             ]
         )
 
+        # ========== VISION MODELS ==========
+        catalog.extend([
+            {
+                "name": "Llama-3.2-11B-Vision-Instruct",
+                "size_gb": 8.5,
+                "ram_required_gb": 16,
+                "description": "📸 Vision: Аналіз скріншотів та дизайну (GGUF)",
+                "url": "https://huggingface.co/bartowski/Llama-3.2-11B-Vision-Instruct-GGUF/resolve/main/Llama-3.2-11B-Vision-Instruct-Q4_K_M.gguf",
+                "file": "Llama-3.2-11B-Vision-Instruct-Q4_K_M.gguf",
+                "tags": ["vision", "multimodal"],
+            }
+        ])
+
         # Сортування: завантажені перші, потім сумісні за розміром
         def sort_key(m):
             downloaded = self._is_model_downloaded(m["file"])
@@ -481,46 +495,40 @@ class LocalModelManager:
             if model["file"] in downloaded_files:
                 model["is_downloaded"] = True
 
-    def download_model(
-        self, model: Dict, progress_callback=None, use_mirror: str = None
-    ) -> bool:
-        """
-        Завантажити модель з дзеркала
+    def download_model(self, model: Dict, progress_callback=None) -> bool:
+        """Завантажити модель з автоматичним перебором дзеркал"""
+        primary_url = model["url"]
+        
+        # Список спроб з різними дзеркалами
+        urls_to_try = [primary_url]
+        if "huggingface.co" in primary_url:
+            base_part = primary_url.split("huggingface.co/")[1]
+            urls_to_try.append(f"https://hf-mirror.com/{base_part}")
+            urls_to_try.append(f"https://ghproxy.com/https://huggingface.co/{base_part}")
 
-        Args:
-            model: Словник з інформацією про модель
-            progress_callback: Callback(progress, downloaded, total)
-            use_mirror: Яке дзеркало використати
-        """
-        mirror = use_mirror or self.preferred_mirror
-        url = model["url"]
+        for url in urls_to_try:
+            try:
+                print(f"📥 Спроба завантаження з: {url}")
+                if self._do_download(url, model, progress_callback):
+                    return True
+            except Exception as e:
+                print(f"⚠️ Помилка дзеркала {url}: {e}")
+                continue
+        
+        raise Exception("Усі дзеркала недоступні. Перевірте з'єднання з інтернетом.")
 
-        # Замінити дзеркало якщо потрібно
-        if mirror != "huggingface" and "huggingface.co" in url:
-            if mirror == "ghproxy":
-                url = f"https://ghproxy.com/{url}"
-            # Додати інші дзеркала за потреби
-
+    def _do_download(self, url: str, model: Dict, progress_callback=None) -> bool:
+        """Внутрішня логіка завантаження одного URL"""
         file_path = self.models_dir / model["file"]
         expected_size_gb = model.get("size_gb", 0)
 
-        # Перевірка наявності
-        if file_path.exists():
-            actual_size_mb = file_path.stat().st_size / (1024**2)
-            expected_size_mb = expected_size_gb * 1024
-            if actual_size_mb >= expected_size_mb * 0.9:
-                print(f"✅ Модель вже завантажена: {file_path}")
-                return True
-            else:
-                print(f"⚠️ Файл пошкоджено, перезавантаження...")
-                file_path.unlink()
-
         try:
             import requests
-
             headers = {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
             }
+            response = requests.get(url, stream=True, timeout=30, headers=headers)
+            response.raise_for_status()
 
             print(f"📥 Завантаження з: {url}")
             print(f"📦 Очікуваний розмір: {expected_size_gb:.2f} GB")
