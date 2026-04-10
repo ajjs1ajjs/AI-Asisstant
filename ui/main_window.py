@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
     QProgressBar,
     QPushButton,
     QSplitter,
+    QTabWidget,
     QScrollArea,
     QTextEdit,
     QTreeWidget,
@@ -351,6 +352,19 @@ class MainWindow(QMainWindow):
         tools_menu.addSeparator()
         tools_menu.addAction("🦙 Ollama Manager", self.open_ollama_manager)
         tools_menu.addAction("🧪 Test Runner", self.toggle_test_runner)
+        tools_menu.addAction("🔍 AI Code Review", self.run_ai_code_review)
+        
+        lang_menu = menubar.addMenu("🌍 Мова")
+        lang_menu.addAction("🇺🇦 Перекласти на українську", lambda: self.translate_project("uk"))
+        lang_menu.addAction("🇺🇸 Перекласти на англійську", lambda: self.translate_project("en"))
+
+    def run_ai_code_review(self):
+        self.add_chat_bubble("🔍 Запускаю повний ШІ-аудит проекту...", "system")
+        self._run_tool_directly("perform_code_review", {})
+
+    def translate_project(self, lang):
+        self.add_chat_bubble(f"🌍 Починаю переклад проекту на {lang}...", "system")
+        self._run_tool_directly("translate_text", {"text": "Hello world", "target_lang": lang})
 
     def toggle_test_runner(self):
         self.test_runner_toggle = not self.test_runner_toggle
@@ -400,7 +414,20 @@ class MainWindow(QMainWindow):
             self.pinned_files.add(self.current_file)
             self.add_chat_bubble(f"📌 Файл закріплено в контексті: {os.path.basename(self.current_file)}", "system")
 
-    def toggle_terminal(self):
+    def select_sqlite_db(self):
+        path, _ = QFileDialog.getOpenFileName(self, "Оберіть SQLite базу даних", self.project_path or "", "*.db *.sqlite *.sqlite3")
+        if path:
+            self.db_explorer.db_path_label.setText(f"Database: {os.path.basename(path)}")
+            self.current_db = path
+
+    def execute_editor_sql(self):
+        sql = self.db_explorer.sql_input.toPlainText()
+        if not hasattr(self, "current_db") or not self.current_db:
+            QMessageBox.warning(self, "DB Error", "Будь ласка, спочатку оберіть базу даних.")
+            return
+        self._run_tool_directly("execute_sql", {"db_path": self.current_db, "sql": sql})
+
+    def toggle_bottom_panel(self, tab_index=0):
         self.terminal_toggle = not self.terminal_toggle
         self.terminal.setVisible(self.terminal_toggle)
 
@@ -800,13 +827,49 @@ class MainWindow(QMainWindow):
         status_layout.setContentsMargins(0, 0, 0, 0)
         status_layout.setSpacing(6)
 
-        self.status_icon = QLabel("●")
-        self.status_icon.setStyleSheet("color: #4ec9b0; font-size: 10px;")
-        status_layout.addWidget(self.status_icon)
+class JupyterViewerWidget(QFrame):
+    """
+    Simple .ipynb (Jupyter Notebook) viewer.
+    """
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setStyleSheet("background-color: #1e1e1e;")
+        layout = QVBoxLayout(self)
+        
+        self.area = QScrollArea()
+        self.area.setWidgetResizable(True)
+        self.content = QLabel("Відкрийте .ipynb файл для перегляду")
+        self.content.setWordWrap(True)
+        self.content.setStyleSheet("color: #ddd; padding: 20px; font-size: 13px;")
+        self.area.setWidget(self.content)
+        layout.addWidget(self.area)
+
+    def load_notebook(self, path):
+        try:
+            import json
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            
+            html = "<h2>Jupyter Notebook</h2>"
+            for cell in data.get("cells", []):
+                ctype = cell.get("cell_type")
+                source = "".join(cell.get("source", []))
+                if ctype == "markdown":
+                    html += f"<div style='margin-bottom: 20px;'>{source}</div>"
+                elif ctype == "code":
+                    html += f"<pre style='background: #2d2d2d; padding: 10px;'>{source}</pre>"
+            
+            self.content.setText(html)
+        except Exception as e:
+            self.content.setText(f"❌ Помилка завантаження: {e}")
 
         self.work_status = QLabel("Готовий")
         self.work_status.setStyleSheet("color: #4ec9b0; font-size: 11px;")
         status_layout.addWidget(self.work_status)
+
+        self.status_icon = QLabel("●")
+        self.status_icon.setStyleSheet("color: #4ec9b0; font-size: 10px;")
+        status_layout.addWidget(self.status_icon)
 
         tl.addWidget(status_container)
 
@@ -861,22 +924,36 @@ class MainWindow(QMainWindow):
         self.chat_scroll.setWidget(self.chat_widget)
         rl.addWidget(self.chat_scroll, 1)
 
-        # Terminal
+        # Bottom Tools Panel (Tabbed)
+        self.bottom_tabs = QTabWidget()
+        self.bottom_tabs.setTabPosition(QTabWidget.South)
+        self.bottom_tabs.setStyleSheet("""
+            QTabWidget::pane { border-top: 1px solid #2d2d30; background: #1e1e1e; }
+            QTabBar::tab { background: #2d2d30; color: #888; padding: 6px 12px; border: none; font-size: 10px; }
+            QTabBar::tab:selected { background: #1e1e1e; color: #4ec9b0; border-top: 2px solid #4ec9b0; }
+        """)
+        self.bottom_tabs.hide()
+        self.bottom_toggle = False
+        
+        # 1. Terminal
         self.terminal = TerminalWidget()
-        self.terminal.setMinimumHeight(120)
-        self.terminal.setMaximumHeight(400)
-        self.terminal_toggle = False
-        self.terminal.hide()
         self.terminal.error_detected.connect(self.handle_terminal_error)
-        rl.addWidget(self.terminal)
+        self.bottom_tabs.addTab(self.terminal, "💻 Terminal")
 
-        # Test Runner (New)
+        # 2. Test Runner
         from ui.components import TestRunnerWidget
         self.test_runner = TestRunnerWidget()
-        self.test_runner.hide()
-        self.test_runner_toggle = False
         self.test_runner.run_btn.clicked.connect(self.run_project_tests)
-        rl.addWidget(self.test_runner)
+        self.bottom_tabs.addTab(self.test_runner, "🧪 Test Runner")
+        
+        # 3. Database
+        from ui.components import SQLiteExplorerWidget
+        self.db_explorer = SQLiteExplorerWidget()
+        self.db_explorer.open_btn.clicked.connect(self.select_sqlite_db)
+        self.db_explorer.run_btn.clicked.connect(self.execute_editor_sql)
+        self.bottom_tabs.addTab(self.db_explorer, "🗄️ Database")
+
+        rl.addWidget(self.bottom_tabs)
 
     def run_project_tests(self):
         self.add_chat_bubble("🧪 Запускаю тести проекту...", "system")

@@ -820,5 +820,80 @@ class TestRunnerWidget(QFrame):
         """)
         layout.addWidget(self.output)
 
-    def set_results(self, results):
-        self.output.setPlainText(results)
+class SQLiteExplorerWidget(QFrame):
+    """
+    Simple SQLite database explorer and query executor.
+    """
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setStyleSheet("background-color: #1e1e1e;")
+        self.setup_ui()
+
+    def setup_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(10, 10, 10, 10)
+
+        # Toolbar
+        t = QHBoxLayout()
+        self.db_path_label = QLabel("Database: None")
+        self.db_path_label.setStyleSheet("color: #4ec9b0; font-weight: bold;")
+        t.addWidget(self.db_path_label)
+        
+        self.open_btn = QPushButton("📂 Open DB")
+        self.open_btn.setFixedSize(100, 26)
+        t.addWidget(self.open_btn)
+        t.addStretch()
+        layout.addLayout(t)
+
+        from PySide6.QtWidgets import QTableWidget, QHeaderView
+        self.table = QTableWidget()
+        self.table.setStyleSheet("""
+            QTableWidget { background-color: #252526; color: #ddd; gridline-color: #333; }
+            QHeaderView::section { background-color: #333; color: #ccc; border: none; padding: 4px; }
+        """)
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        layout.addWidget(self.table)
+
+        # SQL Input
+        self.sql_input = QTextEdit()
+        self.sql_input.setPlaceholderText("Введіть SQL запит тут (напр. SELECT * FROM users)...")
+        self.sql_input.setFixedHeight(60)
+        self.sql_input.setStyleSheet("background: #121212; color: #d4d4d4; border: 1px solid #333;")
+        layout.addWidget(self.sql_input)
+
+class JupyterViewerWidget(QFrame):
+    """
+    Simple .ipynb (Jupyter Notebook) viewer.
+    """
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setStyleSheet("background-color: #1e1e1e;")
+        layout = QVBoxLayout(self)
+        
+        from PySide6.QtWidgets import QScrollArea
+        self.area = QScrollArea()
+        self.area.setWidgetResizable(True)
+        self.content = QLabel("Відкрийте .ipynb файл для перегляду")
+        self.content.setWordWrap(True)
+        self.content.setStyleSheet("color: #ddd; padding: 20px; font-size: 13px;")
+        self.area.setWidget(self.content)
+        layout.addWidget(self.area)
+
+    def load_notebook(self, path):
+        try:
+            import json
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            
+            html = "<h2>Jupyter Notebook</h2>"
+            for cell in data.get("cells", []):
+                ctype = cell.get("cell_type")
+                source = "".join(cell.get("source", []))
+                if ctype == "markdown":
+                    html += f"<div style='margin-top: 10px; color: #4ec9b0;'>{source}</div>"
+                elif ctype == "code":
+                    html += f"<pre style='background: #2d2d2d; padding: 10px; color: #d4d4d4;'>{source}</pre>"
+            
+            self.content.setText(html)
+        except Exception as e:
+            self.content.setText(f"❌ Помилка завантаження: {e}")

@@ -27,5 +27,6 @@ duckduckgo-search>=6.0.0
 SpeechRecognition>=3.10.0
 pyscreenshot>=3.1
 httpx>=0.25.0
+deep-translator>=1.11.4
 # PyAudio is required for SpeechRecognition but might need manual wheels on Windows
 # PyAudio>=0.2.13

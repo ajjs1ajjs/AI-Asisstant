@@ -204,6 +204,57 @@ class AgentTools:
         except Exception as e:
             return f"❌ Web search error: {str(e)}"
 
+    def translate_text(self, text: str, target_lang: str) -> str:
+        """Translate text using deep-translator"""
+        try:
+            from deep_translator import GoogleTranslator
+            translated = GoogleTranslator(source='auto', target=target_lang).translate(text)
+            return f"🌍 Translation ({target_lang}):\n{translated}"
+        except Exception as e:
+            return f"❌ Translation error: {str(e)}"
+
+    def architect_project(self, plan: list) -> str:
+        """Create multiple files based on an architect plan."""
+        results = []
+        for file_info in plan:
+            path = file_info.get("path")
+            content = file_info.get("content")
+            if not path or content is None: continue
+            
+            full_path = os.path.join(self.root_dir, path)
+            os.makedirs(os.path.dirname(full_path), exist_ok=True)
+            with open(full_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            results.append(f"✅ Created: {path}")
+        return "🏗️ Architect plan complete:\n" + "\n".join(results)
+
+    def execute_sql(self, db_path: str, sql: str) -> str:
+        """Execute a SQL query on a local SQLite database"""
+        try:
+            import sqlite3
+            full_path = os.path.join(self.root_dir, db_path)
+            conn = sqlite3.connect(full_path)
+            cursor = conn.cursor()
+            cursor.execute(sql)
+            if sql.strip().upper().startswith("SELECT"):
+                rows = cursor.fetchall()
+                cols = [description[0] for description in cursor.description]
+                conn.close()
+                return f"✅ SQL Executed. Results:\nColumns: {cols}\nRows: {rows[:50]}"
+            else:
+                conn.commit()
+                affected = conn.total_changes
+                conn.close()
+                return f"✅ SQL Executed. Changes: {affected}"
+        except Exception as e:
+            return f"❌ SQL Error: {str(e)}"
+
+    def perform_code_review(self) -> str:
+        """Perform a comprehensive code review of the entire project."""
+        # We use analyze_project to get the structure first
+        structure = self.analyze_project()
+        return f"🔍 Починаю повний аудит проекту...\nСтруктура:\n{structure}\n(Аналіз може зайняти деякий час...)"
+
     def capture_screen(self) -> str:
         """Capture a screenshot of the current screen for visual analysis"""
         try:
@@ -578,14 +629,44 @@ TOOL_DEFINITIONS = [
         },
     },
     {
-        "name": "run_tests",
-        "description": "Run project tests and return the results",
+        "name": "architect_project",
+        "description": "Create multiple files and folders at once based on a project plan",
         "parameters": {
             "type": "object",
             "properties": {
-                "path": {"type": "string", "description": "Path to test folder or file"}
+                "plan": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "path": {"type": "string", "description": "Relative path to the file"},
+                            "content": {"type": "string", "description": "Full content of the file"}
+                        },
+                        "required": ["path", "content"]
+                    }
+                }
             },
+            "required": ["plan"],
+        },
+    },
+    {
+        "name": "perform_code_review",
+        "description": "Perform a comprehensive automated code review of the entire project",
+        "parameters": {
+            "type": "object",
+            "properties": {},
             "required": [],
+        },
+    {
+        "name": "execute_sql",
+        "description": "Execute a SQL query on a local SQLite database",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "db_path": {"type": "string", "description": "Relative path to the .db or .sqlite file"},
+                "sql": {"type": "string", "description": "SQL query to execute"}
+            },
+            "required": ["db_path", "sql"],
         },
     },
 ]
