@@ -28,5 +28,7 @@ SpeechRecognition>=3.10.0
 pyscreenshot>=3.1
 httpx>=0.25.0
 deep-translator>=1.11.4
+graphviz>=0.20.1
+networkx>=3.1
 # PyAudio is required for SpeechRecognition but might need manual wheels on Windows
 # PyAudio>=0.2.13

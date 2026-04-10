@@ -202,6 +202,22 @@ class GitIntegration:
         success, _, stderr = self._run_git(["checkout", name])
         return success, stderr if not success else f"Switched to '{name}'"
 
+    def start_collab_session(self, session_id: str) -> Tuple[bool, str]:
+        """Створити спільну гілку для колаборації"""
+        branch_name = f"collab-{session_id}"
+        success, msg = self.create_branch(branch_name)
+        if success:
+            self.push("origin", branch_name)
+        return success, msg
+
+    def sync_collab_changes(self) -> Tuple[bool, str]:
+        """Синхронізувати зміни з колабораційної гілки"""
+        # 1. Fetch
+        self._run_git(["fetch", "origin"])
+        # 2. Rebase or Merge
+        success, out, err = self._run_git(["pull", "--rebase", "origin"])
+        return success, out if success else err
+
     def get_branches(self) -> List[str]:
         """Отримати список гілок"""
         success, branches, _ = self._run_git(["branch", "--format", "%(refname:short)"])

@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
     QSplitter,
     QTabWidget,
     QScrollArea,
+    QCheckBox,
     QTextEdit,
     QTreeWidget,
     QTreeWidgetItem,
@@ -356,7 +357,23 @@ class MainWindow(QMainWindow):
         
         lang_menu = menubar.addMenu("🌍 Мова")
         lang_menu.addAction("🇺🇦 Перекласти на українську", lambda: self.translate_project("uk"))
-        lang_menu.addAction("🇺🇸 Перекласти на англійську", lambda: self.translate_project("en"))
+        lang_menu.addAction("🇺🇺 Перекласти на англійську", lambda: self.translate_project("en"))
+
+        collab_menu = menubar.addMenu("👥 Колаборація")
+        collab_menu.addAction("🚀 Почати сесію", self.start_collab)
+        collab_menu.addAction("🔄 Синхронізувати", self.sync_collab)
+
+    def start_collab(self):
+        from git_integration import get_git
+        git = get_git(self.project_path)
+        success, msg = git.start_collab_session("shared-dev")
+        self.add_chat_bubble(f"👥 Сесія розпочата: {msg}", "system")
+
+    def sync_collab(self):
+        from git_integration import get_git
+        git = get_git(self.project_path)
+        success, msg = git.sync_collab_changes()
+        self.add_chat_bubble(f"🔄 Синхронізація: {msg}", "system")
 
     def run_ai_code_review(self):
         self.add_chat_bubble("🔍 Запускаю повний ШІ-аудит проекту...", "system")
@@ -953,7 +970,17 @@ class JupyterViewerWidget(QFrame):
         self.db_explorer.run_btn.clicked.connect(self.execute_editor_sql)
         self.bottom_tabs.addTab(self.db_explorer, "🗄️ Database")
 
+        # 4. Knowledge Graph (Live)
+        from ui.knowledge_graph import KnowledgeGraphWidget
+        self.kg_viewer = KnowledgeGraphWidget()
+        self.bottom_tabs.addTab(self.kg_viewer, "📊 Knowledge Graph")
+
         rl.addWidget(self.bottom_tabs)
+        
+        # Connect graph to file changes logic
+        # (Assuming project_path is set later)
+        if self.project_path:
+            self.kg_viewer.update_graph(self.project_path)
 
     def run_project_tests(self):
         self.add_chat_bubble("🧪 Запускаю тести проекту...", "system")
@@ -981,6 +1008,11 @@ class JupyterViewerWidget(QFrame):
         il.setContentsMargins(12, 10, 12, 10)
         il.setSpacing(6)
 
+        # Chat Controls
+        self.swarm_mode = QCheckBox("🐝 Swarm Mode (Multi-Agent)")
+        self.swarm_mode.setStyleSheet("color: #4ec9b0; font-size: 11px;")
+        chat_layout.addWidget(self.swarm_mode)
+        
         self.chat_input = QTextEdit()
         self.chat_input.setMinimumHeight(60)
         self.chat_input.setMaximumHeight(100)

@@ -397,6 +397,11 @@ class ModelOrchestrator:
         self.providers: dict[str, BaseProvider] = {}
         self.auto_switch = True
         self.max_retries = 5
+        self.swarm_roles = {
+            "developer": "Ти - досвідчений Senior Developer. Твоя задача: написати чистий, ефективний та структурований код.",
+            "tester": "Ти - QA Automation Engineer. Твоя задача: написати unittest або pytest для перевірки коду на помилки.",
+            "reviewer": "Ти - Security Auditor. Твоя задача: перевірити код на вразливості та знайти логічні помилки."
+        }
 
     def add_provider(self, name: str, provider: BaseProvider):
         self.providers[name] = provider
@@ -555,3 +560,25 @@ class ModelOrchestrator:
                 model.cooldown_until = time.time() + 60
 
         raise last_error or Exception("All models failed")
+    async def swarm_request(self, user_query: str, status_callback=None):
+        """Executes a task using multiple sub-agents in parallel"""
+        if status_callback:
+            status_callback("🐝 Активую Swarm Mode (Паралельний запуск)...")
+        
+        async def run_role(role, system_prompt):
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_query}
+            ]
+            try:
+                # Pick best model for each sub-agent
+                res = await self.request(messages, task="chat")
+                return f"### Role: {role.capitalize()}\n{res}\n"
+            except Exception as e:
+                return f"### Role: {role.capitalize()} Error: {e}"
+
+        # Run all roles in parallel
+        tasks = [run_role(role, prompt) for role, prompt in self.swarm_roles.items()]
+        results = await asyncio.gather(*tasks)
+        
+        return "\n".join(results)

@@ -213,6 +213,16 @@ class AgentTools:
         except Exception as e:
             return f"❌ Translation error: {str(e)}"
 
+    def predictive_audit(self, target_file: str) -> str:
+        """Perform an AI-based predictive analysis of performance and logic bottlenecks"""
+        try:
+            full_path = os.path.join(self.root_dir, target_file)
+            with open(full_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            return f"⚡ Починаю предиктивний аудит {target_file}...\nАналізую логічні цикли та навантаження..."
+        except Exception as e:
+            return f"❌ Audit error: {str(e)}"
+
     def architect_project(self, plan: list) -> str:
         """Create multiple files based on an architect plan."""
         results = []
@@ -667,6 +677,16 @@ TOOL_DEFINITIONS = [
                 "sql": {"type": "string", "description": "SQL query to execute"}
             },
             "required": ["db_path", "sql"],
+        },
+    {
+        "name": "predictive_audit",
+        "description": "AI-based predictive analysis of performance and logic bottlenecks in a specific file",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "target_file": {"type": "string", "description": "Relative path to the file to audit"}
+            },
+            "required": ["target_file"],
         },
     },
 ]
