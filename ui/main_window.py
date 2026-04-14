@@ -13,6 +13,8 @@ from PySide6.QtWidgets import (
     QInputDialog,
     QLabel,
     QLineEdit,
+    QMenu,
+    QMenuBar,
     QMainWindow,
     QMessageBox,
     QPushButton,
@@ -54,6 +56,7 @@ from ui.components import (
 from ui.editor import EditorTabs
 from ui.jobs import BackgroundJobsWidget
 from ui.time_machine import TimeMachineWidget
+from worker_node import WorkerModeDialog, AddWorkerDialog
 
 
 class MainWindow(QMainWindow):
@@ -98,6 +101,35 @@ class MainWindow(QMainWindow):
         self.shortcut_search.triggered.connect(self.show_file_search)
         self.addAction(self.shortcut_search)
 
+    def init_ui(self):
+        self.menu_bar = self.menuBar()
+
+        # Network/Worker menu
+        self.menu_network = QMenu("Мережа")
+        self.menu_bar.addMenu(self.menu_network)
+
+        self.action_worker_mode = QAction("Режим Worker Node", self)
+        self.action_worker_mode.triggered.connect(self.show_worker_mode)
+        self.menu_network.addAction(self.action_worker_mode)
+
+        self.action_add_worker = QAction("Додати Worker ПК", self)
+        self.action_add_worker.triggered.connect(self.show_add_worker)
+        self.menu_network.addAction(self.action_add_worker)
+
+        central = QWidget()
+        layout = QHBoxLayout(central)
+        self.splitter = QSplitter(Qt.Horizontal)
+
+    def show_worker_mode(self):
+        dlg = WorkerModeDialog(self)
+        dlg.exec()
+
+    def show_add_worker(self):
+        dlg = AddWorkerDialog(self)
+        if dlg.exec():
+            host, port = dlg.get_worker_info()
+            print(f"Adding worker: {host}:{port}")
+
     def show_file_search(self):
         from ui.file_search import FileSearchDialog
 
@@ -107,7 +139,31 @@ class MainWindow(QMainWindow):
         self.file_search_dlg.show()
         self.file_search_dlg.activateWindow()
 
+    def show_worker_mode(self):
+        dlg = WorkerModeDialog(self)
+        dlg.exec()
+
+    def show_add_worker(self):
+        dlg = AddWorkerDialog(self)
+        if dlg.exec():
+            host, port = dlg.get_worker_info()
+            print(f"Adding worker: {host}:{port}")
+
     def init_ui(self):
+        self.menu_bar = self.menuBar()
+
+        # Network/Worker menu
+        self.menu_network = QMenu("Мережа")
+        self.menu_bar.addMenu(self.menu_network)
+
+        self.action_worker_mode = QAction("Режим Worker Node", self)
+        self.action_worker_mode.triggered.connect(self.show_worker_mode)
+        self.menu_network.addAction(self.action_worker_mode)
+
+        self.action_add_worker = QAction("Додати Worker ПК", self)
+        self.action_add_worker.triggered.connect(self.show_add_worker)
+        self.menu_network.addAction(self.action_add_worker)
+
         central = QWidget()
         layout = QHBoxLayout(central)
         self.splitter = QSplitter(Qt.Horizontal)

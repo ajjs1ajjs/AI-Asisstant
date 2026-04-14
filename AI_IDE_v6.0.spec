@@ -1,7 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 from PyInstaller.utils.hooks import collect_all
 
-datas = [('ui/', 'ui/'), ('core/', 'core/'), ('plugins/', 'plugins/'), ('threads/', 'threads/'), ('style.qss', '.'), ('icon.ico', '.'), ('agent_tools.py', '.'), ('autocomplete.py', '.'), ('context_engine.py', '.'), ('git_dialog.py', '.'), ('git_integration.py', '.'), ('hook-runtime.py', '.'), ('local_engine.py', '.'), ('main.py', '.'), ('model_benchmark.py', '.'), ('model_manager.py', '.'), ('orchestrator.py', '.'), ('settings.py', '.'), ('settings_dialog.py', '.')]
+datas = [('ui/', 'ui/'), ('core/', 'core/'), ('plugins/', 'plugins/'), ('threads/', 'threads/'), ('style.qss', '.'), ('icon.ico', '.'), ('agent_tools.py', '.'), ('autocomplete.py', '.'), ('context_engine.py', '.'), ('git_dialog.py', '.'), ('git_integration.py', '.'), ('hook-runtime.py', '.'), ('local_engine.py', '.'), ('main.py', '.'), ('model_benchmark.py', '.'), ('model_manager.py', '.'), ('orchestrator.py', '.'), ('settings.py', '.'), ('settings_dialog.py', '.'), ('worker_node.py', '.')]
 binaries = []
 hiddenimports = []
 tmp_ret = collect_all('llama_cpp')
