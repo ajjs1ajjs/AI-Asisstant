@@ -143,6 +143,141 @@ class ChatBubble(QFrame):
         self.content.setText(text)
 
 
+class StatusIndicator(QFrame):
+    """
+    Visual indicator showing AI status: idle, thinking, tool_calling, etc.
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedHeight(36)
+        self.current_status = "idle"
+        self.setup_ui()
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.animate)
+        self.dot_index = 0
+        self.pulse_timer = QTimer(self)
+        self.pulse_timer.timeout.connect(self.pulse_animation)
+        self.pulse_value = 0
+
+    def setup_ui(self):
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+
+        self.container = QFrame()
+        self.container.setFixedHeight(36)
+        self.container.setStyleSheet("""
+            QFrame {
+                background-color: #1a1d23;
+                border: 1px solid #2d3139;
+                border-radius: 18px;
+                padding: 0px 16px;
+            }
+        """)
+        inner_layout = QHBoxLayout(self.container)
+        inner_layout.setContentsMargins(12, 0, 12, 0)
+        inner_layout.setSpacing(10)
+
+        # Status icon
+        self.icon = QLabel("✨")
+        self.icon.setStyleSheet("font-size: 16px;")
+        inner_layout.addWidget(self.icon)
+
+        # Status text
+        self.status_text = QLabel("Ready")
+        self.status_text.setStyleSheet("color: #64748b; font-size: 12px; font-weight: 500;")
+        inner_layout.addWidget(self.status_text)
+
+        inner_layout.addStretch()
+
+        # Animated dots (for thinking state)
+        self.dots = []
+        for _ in range(3):
+            dot = QLabel("●")
+            dot.setStyleSheet("color: #2d3139; font-size: 14px;")
+            dot.hide()
+            inner_layout.addWidget(dot)
+            self.dots.append(dot)
+
+        layout.addWidget(self.container)
+        layout.addStretch()
+
+        self.hide()
+
+    def set_status(self, status: str, message: str = ""):
+        """Set status: idle, thinking, tool_calling, error, success"""
+        self.current_status = status
+        
+        icon_map = {
+            "idle": ("✨", "#64748b", "Ready"),
+            "thinking": ("🧠", "#a78bfa", "Thinking..."),
+            "tool_calling": ("🛠️", "#fbbf24", "Using tool..."),
+            "error": ("❌", "#f87171", "Error"),
+            "success": ("✅", "#34d399", "Done"),
+        }
+        
+        icon_char, color, default_msg = icon_map.get(status, icon_map["idle"])
+        display_msg = message if message else default_msg
+        
+        self.icon.setText(icon_char)
+        self.status_text.setText(display_msg)
+        self.status_text.setStyleSheet(f"color: {color}; font-size: 12px; font-weight: 500;")
+        
+        self.container.setStyleSheet(f"""
+            QFrame {{
+                background-color: #1a1d23;
+                border: 1px solid {color}40;
+                border-radius: 18px;
+                padding: 0px 16px;
+            }}
+        """)
+        
+        # Show/hide dots based on status
+        for dot in self.dots:
+            if status in ["thinking", "tool_calling"]:
+                dot.show()
+                dot.setStyleSheet(f"color: {color}40; font-size: 14px;")
+            else:
+                dot.hide()
+        
+        if status in ["thinking", "tool_calling"]:
+            self.show()
+            self.timer.start(500)
+        elif status in ["idle", "success"]:
+            if status == "idle":
+                self.hide()
+            else:
+                self.show()
+                self.timer.stop()
+                self.pulse_timer.start(200)
+        elif status == "error":
+            self.show()
+            self.timer.stop()
+
+    def animate(self):
+        """Animate the dots for thinking/tool_calling states"""
+        if self.current_status not in ["thinking", "tool_calling"]:
+            return
+            
+        color = "#a78bfa" if self.current_status == "thinking" else "#fbbf24"
+        self.dot_index = (self.dot_index + 1) % 4
+        
+        for i, dot in enumerate(self.dots):
+            if i < self.dot_index:
+                dot.setStyleSheet(f"color: {color}; font-size: 16px;")
+            else:
+                dot.setStyleSheet(f"color: {color}40; font-size: 14px;")
+
+    def pulse_animation(self):
+        """Pulse animation for success state"""
+        self.pulse_value = (self.pulse_value + 1) % 10
+        alpha = 1.0 - (self.pulse_value * 0.1)
+        if alpha <= 0:
+            self.pulse_timer.stop()
+            self.hide()
+
+
 class ThoughtBubble(QFrame):
     """
     Subtle Bubble for AI Reasoning/Thoughts.
@@ -218,6 +353,9 @@ class ThoughtBubble(QFrame):
 
 
 class DownloadDialog(QDialog):
+    progress_updated = Signal(float, int, int)
+    download_finished = Signal()
+    download_failed = Signal(str)
     def __init__(self, model, model_manager, parent=None):
         super().__init__(parent)
         self.model = model
@@ -271,14 +409,21 @@ class DownloadDialog(QDialog):
         self.cancel_btn.clicked.connect(self.reject)
         layout.addWidget(self.cancel_btn, 0, Qt.AlignRight)
 
+        self.progress_updated.connect(self.update_progress)
+        self.download_finished.connect(self.accept)
+        self.download_failed.connect(self.show_error)
+
         threading.Thread(target=self.start_download, daemon=True).start()
 
     def start_download(self):
         try:
             print(f"DEBUG: Starting download for {self.model.get('name')}")
             # Передаємо callback для прогресу
-            self.model_manager.download_model(self.model, progress_callback=self.update_progress)
-            QTimer.singleShot(0, self.accept)
+            self.model_manager.download_model(
+                self.model,
+                progress_callback=lambda p, d, t: self.progress_updated.emit(p, d, t),
+            )
+            self.download_finished.emit()
         except Exception as e:
             traceback.print_exc()
             self.label.setText(f"Помилка: {str(e)}")
@@ -287,6 +432,10 @@ class DownloadDialog(QDialog):
     def update_progress(self, percent, downloaded, total):
         self.progress.setValue(int(percent))
         self.label.setText(f"Завантажено {int(downloaded/(1024*1024))}MB з {int(total/(1024*1024))}MB")
+
+    def show_error(self, message):
+        self.label.setText(f"Помилка: {message}")
+        self.label.setStyleSheet("color: #ef4444; font-size: 10px;")
 
 
 class ModelCard(QFrame):

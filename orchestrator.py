@@ -400,9 +400,9 @@ class ModelOrchestrator:
         self.swarm_roles = {
             "developer": "Ти - досвідчений Senior Developer. Твоя задача: написати чистий, ефективний та структурований код.",
             "tester": "Ти - QA Automation Engineer. Твоя задача: написати unittest або pytest для перевірки коду на помилки.",
-            "reviewer": "Ти - Security Auditor. Твоя задача: перевірити код на вразливості та знайти логічні помилки."
+            "reviewer": "Ти - Security Auditor. Твоя задача: перевірити код на вразливості та знайти логічні помилки.",
         }
-        self.remote_nodes = [] # List of IPs/URLs
+        self.remote_nodes = []  # List of IPs/URLs
 
     def add_provider(self, name: str, provider: BaseProvider):
         self.providers[name] = provider
@@ -457,12 +457,19 @@ class ModelOrchestrator:
             return max(available, key=lambda m: m.score)
         return max(available, key=lambda m: m.score)
 
+    def get_model_by_name(self, name: str) -> Optional[Model]:
+        for model in self.models:
+            if model.name == name:
+                return model
+        return None
+
     async def stream_request(
         self,
         messages: list,
         task: str = "chat",
         tools: list = None,
         status_callback=None,
+        selected_model: str = None,
     ):
         self.rank_models()
         need_tools = tools is not None
@@ -470,7 +477,10 @@ class ModelOrchestrator:
         tried_models = set()
 
         for attempt in range(self.max_retries):
-            model = self.pick_model(task, need_tools)
+            if selected_model:
+                model = self.get_model_by_name(selected_model)
+            else:
+                model = self.pick_model(task, need_tools)
             if not model:
                 # Fallback: if we need tools but no model supports them, try without tools flag
                 if need_tools:
@@ -518,14 +528,23 @@ class ModelOrchestrator:
 
         raise last_error or Exception("All models failed")
 
-    async def request(self, messages: list, task: str = "chat", tools: list = None):
+    async def request(
+        self,
+        messages: list,
+        task: str = "chat",
+        tools: list = None,
+        selected_model: str = None,
+    ):
         self.rank_models()
         need_tools = tools is not None
         last_error = None
         tried_models = set()
 
         for attempt in range(self.max_retries):
-            model = self.pick_model(task, need_tools)
+            if selected_model:
+                model = self.get_model_by_name(selected_model)
+            else:
+                model = self.pick_model(task, need_tools)
             if not model:
                 # Fallback: if we need tools but no model supports them, try without tools flag
                 if need_tools:
@@ -561,15 +580,16 @@ class ModelOrchestrator:
                 model.cooldown_until = time.time() + 60
 
         raise last_error or Exception("All models failed")
+
     async def swarm_request(self, user_query: str, status_callback=None):
         """Executes a task using multiple sub-agents in parallel"""
         if status_callback:
             status_callback("🐝 Активую Swarm Mode (Паралельний запуск)...")
-        
+
         async def run_role(role, system_prompt):
             messages = [
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_query}
+                {"role": "user", "content": user_query},
             ]
             try:
                 # Pick best model for each sub-agent
@@ -585,6 +605,9 @@ class ModelOrchestrator:
     async def remote_request(self, node_url: str, messages: list):
         """Send inference request to a remote slave node"""
         import httpx
+
         async with httpx.AsyncClient() as client:
-            res = await client.post(f"http://{node_url}:8080/inference", json={"messages": messages})
+            res = await client.post(
+                f"http://{node_url}:8080/inference", json={"messages": messages}
+            )
             return res.json().get("response")

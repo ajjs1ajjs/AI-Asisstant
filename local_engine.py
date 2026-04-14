@@ -5,6 +5,14 @@ Local LLM Inference Engine
 import logging, os, sys, time
 from typing import Dict, Generator, List, Optional
 
+try:
+    from llama_cpp import Llama
+    LLAMA_AVAILABLE = True
+except ImportError:
+    Llama = None
+    LLAMA_AVAILABLE = False
+    print("[LocalEngine] Warning: llama_cpp not found.")
+
 
 class LocalInference:
     def __init__(self):
@@ -14,12 +22,8 @@ class LocalInference:
 
     def load_model(self, model_path, n_ctx=8192):
         try:
-            try:
-    from llama_cpp import Llama
-    LLAMA_AVAILABLE = True
-except ImportError:
-    LLAMA_AVAILABLE = False
-    print("[LocalEngine] Warning: llama_cpp not found.")
+            if not LLAMA_AVAILABLE:
+                raise ImportError("llama_cpp is not installed or failed to import")
 
             for n in ["llama_cpp", "llamacpp", "llama"]:
                 logging.getLogger(n).setLevel(logging.CRITICAL)
@@ -119,6 +123,11 @@ except ImportError:
                 parts.append(f"<|im_start|>user\n{content}<|im_end|>\n")
             elif role == "assistant":
                 parts.append(f"<|im_start|>assistant\n{content}<|im_end|>\n")
+            elif role == "tool":
+                tool_name = msg.get("name", "tool")
+                parts.append(
+                    f"<|im_start|>tool\n[{tool_name}]\n{content}<|im_end|>\n"
+                )
             elif role == "thought":
                 parts.append(f"<|im_start|>thought\n{content}<|im_end|>\n")
 

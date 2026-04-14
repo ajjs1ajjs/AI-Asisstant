@@ -61,12 +61,15 @@ class AsyncChatWorker(QThread):
     status_changed = Signal(str)  # For "🧠 Thinking", "🛠️ Tool: xyz", etc.
     thought_received = Signal(str)  # For streaming reasoning/thoughts
 
-    def __init__(self, orchestrator, messages, task="chat", tools=None):
+    def __init__(
+        self, orchestrator, messages, task="chat", tools=None, selected_model=None
+    ):
         super().__init__()
         self.orchestrator = orchestrator
         self.messages = messages
         self.task = task
         self.tools = tools
+        self.selected_model = selected_model
         self.full_response = ""
         self.is_tool_call = False
         self.is_running = True
@@ -86,7 +89,10 @@ class AsyncChatWorker(QThread):
                     if self.tools:
                         self.status_changed.emit("🛠️ Виконання інструментів...")
                         res = await self.orchestrator.request(
-                            self.messages, task=self.task, tools=self.tools
+                            self.messages,
+                            task=self.task,
+                            tools=self.tools,
+                            selected_model=self.selected_model,
                         )
                         if not self.is_running:
                             return
@@ -103,6 +109,7 @@ class AsyncChatWorker(QThread):
                             task=self.task,
                             tools=self.tools,
                             status_callback=self.status_changed.emit,
+                            selected_model=self.selected_model,
                         ):
                             if not self.is_running:
                                 break

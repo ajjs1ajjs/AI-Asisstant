@@ -1,24 +1,28 @@
 @echo off
 chcp 65001 >nul
+cd /d "%~dp0"
+
 echo ====================================
-echo   🧠 AI Coding IDE v2.0
+echo   AI Coding IDE v6.0
 echo ====================================
 echo.
 
-cd /d "%~dp0"
-
-if exist "dist\AI_Coding_IDE_v2.exe" (
-    echo 🚀 Запуск EXE версії...
-    start "" "dist\AI_Coding_IDE_v2.exe"
+if exist "dist\AI_IDE_v6.0\AI_IDE_v6.0.exe" (
+    echo Launching built EXE...
+    start "" "dist\AI_IDE_v6.0\AI_IDE_v6.0.exe"
 ) else if exist "main.py" (
-    echo 🐍 Запуск з вихідників...
-    python main.py
+    echo Launching from source...
+    if exist ".venv312\Scripts\python.exe" (
+        ".venv312\Scripts\python.exe" main.py
+    ) else (
+        python main.py
+    )
 ) else (
-    ❌ Помилка: Файли не знайдено!
+    echo Error: project files not found.
     pause
     exit /b 1
 )
 
 echo.
-echo ✅ Завершено
+echo Done
 pause

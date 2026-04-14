@@ -3,7 +3,7 @@ import shutil
 import PyInstaller.__main__
 
 def build():
-    print("🚀 Збираю швидкий портативний білд (режим папки)...")
+    print("Building portable onedir build...")
     
     # Очищення
     if os.path.exists("dist"): shutil.rmtree("dist")
@@ -42,7 +42,7 @@ def build():
         params.append(f'--add-data={src};{dst}')
     
     PyInstaller.__main__.run(params)
-    print("✅ Білд готовий у папці 'dist/AI_IDE_v6.0'")
+    print("Build completed in 'dist/AI_IDE_v6.0'")
 
 if __name__ == "__main__":
     build()

@@ -1,40 +1,34 @@
 @echo off
-setlocal enabledelayedexpansion
+chcp 65001 >nul
+setlocal
+cd /d "%~dp0"
 
-echo 🚀 AI Coding IDE Build Script
-echo ============================
+echo AI Coding IDE Build Script
+echo ==========================
 
-:: Check for Python
-python --version >nul 2>&1
+if exist ".venv312\Scripts\python.exe" (
+    set "PYTHON_EXE=.venv312\Scripts\python.exe"
+) else (
+    set "PYTHON_EXE=python"
+)
+
+%PYTHON_EXE% --version >nul 2>&1
 if %errorlevel% neq 0 (
-    echo ❌ Python is not installed or not in PATH.
+    echo Error: Python is not available.
     pause
     exit /b 1
 )
 
-:: Check for PyInstaller
-pyinstaller --version >nul 2>&1
-if %errorlevel% neq 0 (
-    echo ⚠️ PyInstaller not found. Attempting to install...
-    pip install pyinstaller
-    if !errorlevel! neq 0 (
-        echo ❌ Failed to install PyInstaller.
-        pause
-        exit /b 1
-    )
-)
-
-:: Build Command
-echo 📦 Building executable using ai_ide.spec...
-pyinstaller --noconfirm ai_ide.spec
+set PYTHONIOENCODING=utf-8
+%PYTHON_EXE% build_exe.py
 
 if %errorlevel% equ 0 (
     echo.
-    echo ✅ Build successful!
-    echo 📂 Output is in: dist\AI_Coding_IDE_v2\
+    echo Build successful.
+    echo Output: dist\AI_IDE_v6.0\
 ) else (
     echo.
-    echo ❌ Build failed. Please check the logs above.
+    echo Build failed. Check the logs above.
 )
 
 pause

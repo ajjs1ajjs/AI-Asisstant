@@ -187,7 +187,10 @@ class AgentTools:
     def web_search(self, query: str) -> str:
         """Search the web for up-to-date information and documentation"""
         try:
-            from duckduckgo_search import DDGS
+            try:
+                from ddgs import DDGS
+            except ImportError:
+                from duckduckgo_search import DDGS
 
             results = []
             with DDGS() as ddgs:
@@ -611,6 +614,27 @@ TOOL_DEFINITIONS = [
         },
     },
     {
+        "name": "web_search",
+        "description": "Search the web for up-to-date information and documentation",
+        "parameters": {
+            "type": "object",
+            "properties": {"query": {"type": "string", "description": "Web search query"}},
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "translate_text",
+        "description": "Translate text into another language",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "text": {"type": "string", "description": "Text to translate"},
+                "target_lang": {"type": "string", "description": "Target language code"},
+            },
+            "required": ["text", "target_lang"],
+        },
+    },
+    {
         "name": "run_command",
         "description": "Execute a shell command",
         "parameters": {
@@ -650,6 +674,20 @@ TOOL_DEFINITIONS = [
         "parameters": {
             "type": "object",
             "properties": {},
+            "required": [],
+        },
+    },
+    {
+        "name": "run_tests",
+        "description": "Run project tests and return the results",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "Optional test path relative to project root",
+                }
+            },
             "required": [],
         },
     },
