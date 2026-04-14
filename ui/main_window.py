@@ -299,7 +299,9 @@ class MainWindow(QMainWindow):
                 self.orchestrator.add_model(model)
 
     def trigger_autocomplete(self):
-        self.autocomplete.get_suggestions(self.chat_input.toPlainText())
+        text = self.chat_input.toPlainText()
+        if text:
+            self.autocomplete.get_context(text, len(text))
 
     def send_message(self):
         text = self.chat_input.toPlainText().strip()
@@ -308,8 +310,9 @@ class MainWindow(QMainWindow):
 
         print(f"Sending message: {text[:50]}...")
 
-        context = self.context_engine.get_relevant_context(text)
-        prompt = f"Project context: {context}\n\nUser request: {text}"
+        context = self.context_engine.get_context_for_query(text, k=3)
+        context_str = "\n\n".join([c["text"] for c in context]) if context else ""
+        prompt = f"Project context: {context_str}\n\nUser request: {text}"
 
         self.add_chat_bubble(text, "user")
         self.chat_input.clear()
@@ -328,10 +331,12 @@ class MainWindow(QMainWindow):
         model_name = getattr(self, "current_model", None)
         if model_name:
             print(f"Using model: {model_name.name}")
+            model_str = model_name.name
         else:
             print("No model selected, will auto-select")
+            model_str = None
 
-        self.start_chat_worker(text, model_name)
+        self.start_chat_worker(text, model_str)
 
     def should_use_tools(self, text):
         lowered = text.lower()
@@ -516,9 +521,20 @@ class MainWindow(QMainWindow):
 
     def update_model_selector(self):
         self.model_selector.clear()
-        for model in self.orchestrator.models:
+        print(
+            f"[DEBUG] Available models: {[(m.name, m.provider) for m in self.orchestrator.models]}"
+        )
+        local_index = 0
+        for i, model in enumerate(self.orchestrator.models):
             label = f"{model.name} ({model.provider})"
             self.model_selector.addItem(label, model.provider + ":" + model.name)
+            if model.provider == "local":
+                local_index = i
+
+        # Default to local model
+        self.model_selector.setCurrentIndex(local_index)
+        self.current_model = self.orchestrator.models[local_index]
+        print(f"[DEBUG] Default model set: {self.current_model.name}")
 
     def on_model_selected(self, index):
         if index >= 0:
@@ -528,7 +544,15 @@ class MainWindow(QMainWindow):
                 for model in self.orchestrator.models:
                     if model.name == name and model.provider == provider:
                         self.current_model = model
+                        print(f"[DEBUG] Model selected: {name} ({provider})")
                         break
+        else:
+            # Default to local model
+            for model in self.orchestrator.models:
+                if model.provider == "local":
+                    self.current_model = model
+                    print(f"[DEBUG] Default model: {model.name}")
+                    break
 
     def refresh_git_log(self):
         pass
@@ -549,9 +573,13 @@ class MainWindow(QMainWindow):
                     is_free=True,
                     requires_key=False,
                     description=model.get("description", ""),
-                    supports_tools=False,
+                    supports_tools=True,
                 )
             )
+
+        print(
+            f"[DEBUG] Local models synced. Total models: {len(self.orchestrator.models)}"
+        )
 
     def load_model(self, model):
         model_name = model.get("name")
